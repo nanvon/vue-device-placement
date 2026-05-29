@@ -1,0 +1,318 @@
+/* ==========================================================================
+   vue-device-placement 样式
+   所有类名以 dp- 前缀防冲突；可定制项通过 .dp-root 上的 CSS 变量暴露。
+   ========================================================================== */
+
+.dp-root {
+  /* —— 可定制主题变量（接入方覆盖即可改主题） —— */
+  --dp-primary-color: #2f80ed; /* 主题/高亮色 */
+  --dp-bg-color: #ffffff;
+  --dp-border-color: #e5e7eb;
+  --dp-text-color: #1f2937;
+  --dp-muted-color: #9ca3af;
+  --dp-palette-width: 200px; /* 左侧列表宽度 */
+  --dp-palette-bg: #fafafa;
+  --dp-canvas-bg: #f3f4f6;
+  --dp-marker-size: 32px; /* 点位图标尺寸 */
+  --dp-label-max-width: 96px; /* 名称最大宽度（超出省略） */
+  --dp-label-bg: rgba(0, 0, 0, 0.65); /* 名称底色 */
+  --dp-label-color: #ffffff;
+  --dp-highlight-scale: 1.25; /* 高亮放大倍数 */
+  --dp-radius: 6px;
+  --dp-height: 480px; /* 组件整体高度 */
+
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  height: var(--dp-height);
+  border: 1px solid var(--dp-border-color);
+  border-radius: var(--dp-radius);
+  overflow: hidden;
+  color: var(--dp-text-color);
+  background: var(--dp-bg-color);
+  font-family: inherit;
+  font-size: 14px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dp-root *,
+.dp-root *::before,
+.dp-root *::after {
+  box-sizing: border-box;
+}
+
+/* —— 左侧设备列表 —— */
+.dp-palette {
+  flex: 0 0 var(--dp-palette-width);
+  width: var(--dp-palette-width);
+  border-right: 1px solid var(--dp-border-color);
+  background: var(--dp-palette-bg);
+  overflow-y: auto;
+}
+
+.dp-palette-empty {
+  padding: 16px;
+  color: var(--dp-muted-color);
+  font-size: 13px;
+  text-align: center;
+}
+
+.dp-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dp-device-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--dp-radius);
+  background: #fff;
+  cursor: grab;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.dp-device-item:hover {
+  border-color: var(--dp-border-color);
+}
+.dp-device-item:active {
+  cursor: grabbing;
+}
+/* 已放置：置灰区分（PRD F7） */
+.dp-device-item.is-placed {
+  opacity: 0.55;
+  cursor: pointer;
+}
+.dp-device-item.is-selected {
+  border-color: var(--dp-primary-color);
+  background: color-mix(in srgb, var(--dp-primary-color) 8%, #fff);
+}
+
+.dp-device-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.dp-device-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 已放置角标（PRD F7） */
+.dp-device-badge {
+  flex: 0 0 auto;
+  color: var(--dp-primary-color);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* —— 中间画布 —— */
+.dp-canvas {
+  flex: 1 1 auto;
+  position: relative;
+  background: var(--dp-canvas-bg);
+  overflow: hidden;
+}
+
+.dp-canvas-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+/* 包裹层尺寸 = 图片实际渲染尺寸，点位层据此精确对齐（技术方案 §6.2） */
+.dp-bg-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* 放大后画布可拖拽平移 */
+.dp-canvas.is-zoomed {
+  cursor: grab;
+}
+.dp-canvas.is-panning {
+  cursor: grabbing;
+}
+
+.dp-bg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 点位层：覆盖在图片上、与之同尺寸同位置 */
+.dp-marker-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dp-marker-layer .dp-marker {
+  pointer-events: auto;
+}
+
+/* —— 单个点位 —— */
+.dp-marker {
+  position: absolute;
+  /* 锚点为图标中心；反向缩放抵消画布缩放，使点位视觉大小恒定（地图 pin 效果） */
+  transform: translate(-50%, -50%) scale(calc(1 / var(--dp-zoom, 1)));
+  cursor: grab;
+}
+.dp-marker:hover {
+  z-index: 10;
+}
+.dp-marker.is-selected {
+  z-index: 20;
+}
+.dp-marker.is-dragging {
+  z-index: 30;
+  cursor: grabbing;
+}
+
+.dp-marker-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-marker-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+/* 高亮：放大（PRD F5） */
+.dp-marker.is-selected .dp-marker-icon-wrap {
+  transform: scale(var(--dp-highlight-scale));
+}
+
+.dp-marker-icon {
+  display: block;
+  width: var(--dp-marker-size);
+  height: var(--dp-marker-size);
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+/* 高亮：主题色发光描边 */
+.dp-marker.is-selected .dp-marker-icon {
+  filter: drop-shadow(0 0 4px var(--dp-primary-color))
+    drop-shadow(0 0 2px var(--dp-primary-color));
+}
+
+/* 点位名称：上方常显，超长省略（PRD F6 / §8） */
+.dp-marker-label {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: var(--dp-label-max-width);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--dp-label-bg);
+  color: var(--dp-label-color);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* 删除×：默认隐藏，悬停或选中时显示（PRD F4 / §9） */
+.dp-marker-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.dp-marker:hover .dp-marker-remove,
+.dp-marker.is-selected .dp-marker-remove {
+  display: flex;
+}
+
+/* —— 画布提示 / 空态 —— */
+.dp-canvas-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.dp-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dp-muted-color);
+}
+.dp-empty-default {
+  text-align: center;
+  font-size: 14px;
+}
+.dp-empty-default p {
+  margin: 0;
+}
+
+/* —— 拖拽跟随光标浮层（F8） —— */
+.dp-drag-ghost {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.dp-drag-ghost-icon {
+  width: var(--dp-marker-size);
+  height: var(--dp-marker-size);
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* —— 只读模式 —— */
+.dp-root.is-readonly .dp-device-item,
+.dp-root.is-readonly .dp-marker {
+  cursor: default;
+}
