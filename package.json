@@ -41,6 +41,14 @@
     "设备"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/nanvon/vue-device-placement#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanvon/vue-device-placement.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nanvon/vue-device-placement/issues"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

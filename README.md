@@ -1,6 +1,13 @@
 # vue-device-placement
 
+[![npm version](https://img.shields.io/npm/v/vue-device-placement.svg)](https://www.npmjs.com/package/vue-device-placement)
+[![npm downloads](https://img.shields.io/npm/dm/vue-device-placement.svg)](https://www.npmjs.com/package/vue-device-placement)
+[![GitHub](https://img.shields.io/badge/GitHub-nanvon/vue--device--placement-black)](https://github.com/nanvon/vue-device-placement)
+
 > 在底图上拖拽标注设备位置的 Vue 3 组件 —— 装个包就能用的"设备打点"能力。
+
+- npm: [vue-device-placement](https://www.npmjs.com/package/vue-device-placement)
+- GitHub: [nanvon/vue-device-placement](https://github.com/nanvon/vue-device-placement)
 
 很多业务都需要"在一张底图上标出设备的位置"：安防在楼层平面图上布摄像头/门禁/消防栓，光伏在电站图上布逆变器。本组件把这类交互抽象为开箱即用的前端组件：传入设备清单与底图，即可获得完整的拖拽打点能力，并拿到标准化的点位数据。
 
