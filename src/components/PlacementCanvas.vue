@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Device, Placement } from '../types'
 import { useCanvasCoordinate } from '../composables/useCanvasCoordinate'
 import { useZoomPan } from '../composables/useZoomPan'
@@ -56,6 +56,13 @@ const renderable = computed(() =>
 
 const showEmpty = computed(() => !props.background || loadError.value)
 const showHint = computed(() => !showEmpty.value && props.placements.length === 0)
+
+watch(
+  () => props.background,
+  () => {
+    loadError.value = false
+  },
+)
 
 function onError() {
   loadError.value = true

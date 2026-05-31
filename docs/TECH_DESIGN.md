@@ -76,7 +76,7 @@ vue-device-placement/
 | `devices` | `Device[]` | 是 | — | 设备清单（渲染左侧列表） |
 | `background` | `string` | 是 | — | 底图图片 URL |
 | `placements` | `Placement[]` | 否 | `[]` | 点位数据，配合 `v-model:placements` 双向绑定 |
-| `selected` | `string \| null` | 否 | `null` | 当前高亮设备 id，配合 `v-model:selected` |
+| `selected` | `string \| null` | 否 | `null` | 当前高亮设备 id；不绑定时组件内部维护，配合 `v-model:selected` 可外部控制 |
 | `highlightDuration` | `number` | 否 | `3000` | 高亮自动取消时长（毫秒） |
 | `readonly` | `boolean` | 否 | `false` | 只读模式（禁用拖拽与删除）。预留扩展，P1 |
 | `zoomable` | `boolean` | 否 | `true` | 是否启用底图缩放/平移（滚轮缩放、拖空白平移、双击复位）。关闭时复位并禁用相关交互 |
@@ -94,6 +94,10 @@ vue-device-placement/
 | `remove` | `(deviceId: string)` | 删除点位时 |
 
 > 同时提供"完整数组"和"语义事件"两套出口：要整表覆盖就用 `update:placements`，要增量保存就监听 `place/move/remove`。对应 PRD §7.7 两种存库策略。
+
+包入口同时支持两种接入方式：
+- 按组件使用：`import { DevicePlacement } from 'vue-device-placement'`；
+- 按插件安装：`import VueDevicePlacement from 'vue-device-placement'` 后 `app.use(VueDevicePlacement)`，内部全局注册 `<DevicePlacement />`。
 
 ### 3.3 Slots（对应"预留插槽自定义"）
 
@@ -188,7 +192,7 @@ export interface Placement {
 - `usePlacements`：封装 upsert / remove，计算 `placedSet`，统一 emit。
 - `useCanvasCoordinate`：提供"鼠标像素 → 归一化坐标"换算。
 - `useDrag`：拖拽状态机（列表拖入 / 画布内移动）。
-- `useHighlight`：`selected` + 定时器管理。
+- `useHighlight`：`selected` + 定时器管理；根组件同时维护内部 `selected`，保证未绑定 `v-model:selected` 时内置高亮仍可用。
 - `useZoomPan`：底图滚轮缩放（以光标为焦点）、拖空白平移（边界钳制）、双击复位；受 `zoomable` 开关控制。
 
 ---

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Device, Placement } from '../types'
 import { sanitizePlacements } from '../core/placement'
 import { usePlacements } from '../composables/usePlacements'
@@ -7,6 +7,8 @@ import { useHighlight } from '../composables/useHighlight'
 import { useDrag } from '../composables/useDrag'
 import DevicePalette from './DevicePalette.vue'
 import PlacementCanvas from './PlacementCanvas.vue'
+
+defineOptions({ name: 'DevicePlacement' })
 
 const props = withDefaults(
   defineProps<{
@@ -16,7 +18,7 @@ const props = withDefaults(
     background: string
     /** 点位数据，配合 v-model:placements */
     placements?: Placement[]
-    /** 当前高亮设备 id，配合 v-model:selected */
+    /** 当前高亮设备 id；不绑定时组件内部维护，配合 v-model:selected 可外部控制 */
     selected?: string | null
     /** 高亮自动取消时长（毫秒） */
     highlightDuration?: number
@@ -43,6 +45,16 @@ const emit = defineEmits<{
 }>()
 
 const canvasRef = ref<InstanceType<typeof PlacementCanvas> | null>(null)
+const internalSelected = ref<string | null>(props.selected ?? null)
+
+watch(
+  () => props.selected,
+  (value) => {
+    internalSelected.value = value ?? null
+  },
+)
+
+const activeSelected = computed(() => props.selected ?? internalSelected.value)
 
 // 渲染与操作都基于"清洗后的"点位（过滤未知设备 id、去重、clamp），对应 PRD §8
 const cleanPlacements = computed(() => sanitizePlacements(props.placements ?? [], props.devices))
@@ -57,7 +69,10 @@ const placements = usePlacements({
 
 const highlight = useHighlight({
   duration: () => props.highlightDuration,
-  onChange: (id) => emit('update:selected', id),
+  onChange: (id) => {
+    internalSelected.value = id
+    emit('update:selected', id)
+  },
 })
 
 const drag = useDrag({
@@ -94,7 +109,7 @@ function onMarkerPointerDown(payload: { deviceId: string; event: PointerEvent })
 function onMarkerRemove(deviceId: string) {
   if (props.readonly) return
   placements.remove(deviceId)
-  if (props.selected === deviceId) highlight.select(null)
+  if (activeSelected.value === deviceId) highlight.select(null)
 }
 
 /** move 模式下正在拖动的点位 id（用于画布层置顶样式） */
@@ -127,7 +142,7 @@ const showGhost = computed(
       class="dp-section-palette"
       :devices="devices"
       :placed-set="placements.placedSet.value"
-      :selected="selected"
+      :selected="activeSelected"
       :readonly="readonly"
       @pointerdown-device="onPalettePointerDown"
       @select-device="selectDevice"
@@ -146,7 +161,7 @@ const showGhost = computed(
       :background="background"
       :devices="devices"
       :placements="cleanPlacements"
-      :selected="selected"
+      :selected="activeSelected"
       :dragging-id="draggingId"
       :readonly="readonly"
       :zoomable="zoomable"

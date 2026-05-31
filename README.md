@@ -21,6 +21,8 @@ npm i vue-device-placement
 
 ## 快速上手
 
+### 方式一：按组件引入
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -54,6 +56,30 @@ function save() {
 ```
 
 > 别忘了引入样式：`import 'vue-device-placement/style.css'`。
+> `v-model:selected` 是可选的：不绑定时组件会自行维护高亮；只有当宿主项目也需要读取/控制当前高亮设备时才需要绑定。
+
+### 方式二：作为 Vue 插件安装
+
+```ts
+import { createApp } from 'vue'
+import VueDevicePlacement from 'vue-device-placement'
+import 'vue-device-placement/style.css'
+import App from './App.vue'
+
+createApp(App).use(VueDevicePlacement).mount('#app')
+```
+
+安装后可在任意组件中直接使用：
+
+```vue
+<template>
+  <DevicePlacement
+    :devices="devices"
+    background="/floor-plans/1f.png"
+    v-model:placements="placements"
+  />
+</template>
+```
 
 ## Props
 
@@ -62,7 +88,7 @@ function save() {
 | `devices` | `Device[]` | 是 | — | 设备清单（渲染左侧列表） |
 | `background` | `string` | 是 | — | 底图图片 URL |
 | `placements` | `Placement[]` | 否 | `[]` | 点位数据，配合 `v-model:placements` |
-| `selected` | `string \| null` | 否 | `null` | 当前高亮设备 id，配合 `v-model:selected` |
+| `selected` | `string \| null` | 否 | `null` | 当前高亮设备 id；不绑定时组件内部维护，配合 `v-model:selected` 可外部控制 |
 | `highlightDuration` | `number` | 否 | `3000` | 高亮自动取消时长（毫秒） |
 | `readonly` | `boolean` | 否 | `false` | 只读模式（禁用拖拽与删除） |
 | `zoomable` | `boolean` | 否 | `true` | 底图缩放/平移：滚轮缩放、拖空白平移、双击复位；设为 `false` 全部禁用 |
@@ -80,6 +106,7 @@ function save() {
 | `remove` | `(deviceId)` | 删除点位时 |
 
 > 同时提供「完整数组」和「语义事件」两套出口：要整表覆盖就用 `update:placements`，要增量保存就监听 `place/move/remove`。
+> `update:selected` 始终会抛出；如果不绑定 `v-model:selected`，组件内部仍会正常高亮并自动取消。
 
 ## 插槽（Slots）
 

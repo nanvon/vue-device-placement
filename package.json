@@ -41,6 +41,9 @@
     "设备"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "peerDependencies": {
     "vue": "^3.3.0"
   },

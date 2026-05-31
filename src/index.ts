@@ -1,8 +1,16 @@
+import type { App, Plugin } from 'vue'
 import './styles/index.css'
 import DevicePlacement from './components/DevicePlacement.vue'
 
+export function install(app: App) {
+  app.component('DevicePlacement', DevicePlacement)
+}
+
+const plugin = DevicePlacement as typeof DevicePlacement & Plugin
+plugin.install = install
+
 export { DevicePlacement }
-export default DevicePlacement
+export default plugin
 
 // 类型
 export type { Device, Placement, Point } from './types'
