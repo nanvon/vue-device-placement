@@ -25,6 +25,18 @@ export interface Placement {
   y: number
 }
 
+/**
+ * Palette 列表的层级节点：仅用于左侧列表的树形展示，不参与打点核心模型。
+ * 节点通过 deviceId 引用 devices 中的某个设备实例；无论父节点还是子节点，
+ * 只要其 deviceId 命中 devices，就照常可选中、可拖拽打点。
+ */
+export interface PaletteNode {
+  /** 引用 devices 中的设备 id（如主机或其下设备） */
+  deviceId: string
+  /** 子节点列表；省略或为空即为叶子节点 */
+  children?: PaletteNode[]
+}
+
 /** 归一化坐标点 */
 export interface Point {
   x: number

@@ -92,7 +92,8 @@ createApp(App).use(VueDevicePlacement).mount('#app')
 
 | 名称 | 类型 | 必填 | 默认 | 说明 |
 |------|------|:--:|:--:|------|
-| `devices` | `Device[]` | 是 | — | 设备清单（渲染左侧列表） |
+| `devices` | `Device[]` | 是 | — | 设备清单（设备实例全集；渲染左侧列表、画布点位与拖拽均基于此） |
+| `paletteTree` | `PaletteNode[]` | 否 | — | 左侧列表层级数据：传入则按树形展开（如主机-设备两级），不传则平铺 `devices`。仅影响列表展示，不影响打点 |
 | `background` | `string` | 是 | — | 底图图片 URL |
 | `placements` | `Placement[]` | 否 | `[]` | 点位数据，配合 `v-model:placements` |
 | `selected` | `string \| null` | 否 | `null` | 当前高亮设备 id；不绑定时组件内部维护，配合 `v-model:selected` 可外部控制 |
@@ -121,7 +122,7 @@ createApp(App).use(VueDevicePlacement).mount('#app')
 |------|-----------|------|
 | `marker` | `{ device, placement, selected }` | 完全自定义点位外观 |
 | `icon` | `{ device, selected }` | 只自定义图标，保留默认名称与删除× |
-| `device-item` | `{ device, placed }` | 自定义左侧列表项外观 |
+| `device-item` | `{ device, placed, depth }` | 自定义左侧列表项外观（`depth` 为树形展开时的层级深度，平铺时恒为 0） |
 | `palette-empty` | — | 左侧无设备时的空状态 |
 | `empty` | — | 画布空状态（无底图 / 底图加载失败） |
 
@@ -152,6 +153,30 @@ interface Placement {
 ```
 
 回显数据中若含设备清单里不存在的 id，会被自动忽略，不影响其余点位渲染。
+
+### 树形列表（可选）
+
+`devices` 始终是「设备实例全集」并承载打点（每个实例可单独打点）；若左侧列表需要分层展示（如主机-设备两级），额外传 `paletteTree`，用 `deviceId` 引用 `devices` 中的实例并描述父子关系即可。父节点与子节点都照常可选中、可拖拽打点；不传 `paletteTree` 时即为普通一级列表。过滤/搜索请在外部对 `paletteTree` 自行处理后传入，组件只负责按给定结构渲染。
+
+```ts
+interface PaletteNode {
+  deviceId: string         // 引用 devices 中的设备 id
+  children?: PaletteNode[] // 子节点；省略即为叶子
+}
+```
+
+```ts
+// devices 仍是扁平全集（主机与设备都在内，均可打点）
+const devices = [
+  { id: 'host-1', name: '消防主机1', icon: '...' },
+  { id: 'dev-1', name: '烟感1', icon: '...' },
+  { id: 'dev-2', name: '烟感2', icon: '...' },
+]
+// paletteTree 只描述列表层级
+const paletteTree = [
+  { deviceId: 'host-1', children: [{ deviceId: 'dev-1' }, { deviceId: 'dev-2' }] },
+]
+```
 
 ## 主题定制（CSS 变量）
 

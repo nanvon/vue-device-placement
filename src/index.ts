@@ -13,7 +13,7 @@ export { DevicePlacement }
 export default plugin
 
 // 类型
-export type { Device, Placement, Point } from './types'
+export type { Device, PaletteNode, Placement, Point } from './types'
 
 // 核心纯函数（供需要在组件外处理点位数据的高级用户使用）
 export {

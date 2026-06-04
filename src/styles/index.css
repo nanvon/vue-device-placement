@@ -12,6 +12,7 @@
   --dp-muted-color: #9ca3af;
   --dp-palette-width: 200px; /* 左侧列表宽度 */
   --dp-palette-bg: #fafafa;
+  --dp-indent: 16px; /* 树形列表每级缩进量 */
   --dp-canvas-bg: #f3f4f6;
   --dp-marker-size: 32px; /* 点位图标尺寸 */
   --dp-label-max-width: 96px; /* 名称最大宽度（超出省略） */
@@ -72,6 +73,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
+  /* 树形缩进：深度由列表层通过 --dp-depth 注入，每级叠加一个缩进单位；平铺列表深度为 0 即无缩进 */
+  padding-left: calc(8px + var(--dp-depth, 0) * var(--dp-indent, 16px));
   border: 1px solid transparent;
   border-radius: var(--dp-radius);
   background: #fff;

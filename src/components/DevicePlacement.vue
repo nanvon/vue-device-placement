@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Device, Placement } from '../types'
+import type { Device, PaletteNode, Placement } from '../types'
 import { sanitizePlacements } from '../core/placement'
 import { usePlacements } from '../composables/usePlacements'
 import { useHighlight } from '../composables/useHighlight'
@@ -12,8 +12,10 @@ defineOptions({ name: 'DevicePlacement' })
 
 const props = withDefaults(
   defineProps<{
-    /** 设备清单（渲染左侧列表） */
+    /** 设备清单（设备实例全集，渲染左侧列表、画布点位与拖拽均基于此） */
     devices: Device[]
+    /** 左侧列表层级数据；传入则列表按树形展开，不传则平铺 devices（一级列表）。仅影响列表展示，不影响打点 */
+    paletteTree?: PaletteNode[]
     /** 底图图片 URL */
     background: string
     /** 点位数据，配合 v-model:placements */
@@ -141,6 +143,7 @@ const showGhost = computed(
     <DevicePalette
       class="dp-section-palette"
       :devices="devices"
+      :tree="paletteTree"
       :placed-set="placements.placedSet.value"
       :selected="activeSelected"
       :readonly="readonly"

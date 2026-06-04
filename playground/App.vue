@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { DevicePlacement } from 'vue-device-placement'
-import type { Device, Placement } from 'vue-device-placement'
+import type { Device, PaletteNode, Placement } from 'vue-device-placement'
 
 /** 用内联 SVG 生成图标，省去外部图片依赖 */
 function icon(emoji: string, bg: string): string {
@@ -35,6 +35,19 @@ const placements = ref<Placement[]>([
   { deviceId: 'inverter-01', x: 0.76, y: 0.402 },
 ])
 
+// 树形模式演示：devices 仍是扁平全集，paletteTree 仅描述列表层级（主机-设备两级），父子节点都可打点
+const paletteTree: PaletteNode[] = [
+  {
+    deviceId: 'fire-hydrant-01',
+    children: [{ deviceId: 'camera-01' }, { deviceId: 'sensor-01' }]
+  },
+  {
+    deviceId: 'access-door-01',
+    children: [{ deviceId: 'inverter-01' }]
+  }
+]
+const treeMode = ref(false)
+
 const selected = ref<string | null>(null)
 
 const json = computed(() => JSON.stringify(placements.value, null, 2))
@@ -54,12 +67,17 @@ function fmt(pos: { x: number; y: number }) {
     <header>
       <h1>vue-device-placement</h1>
       <span>设备打点组件 · Playground（拖一下 / 删一下，右侧 JSON 实时变化）</span>
+      <label class="tree-toggle">
+        <input v-model="treeMode" type="checkbox" />
+        树形列表模式（主机-设备两级）
+      </label>
     </header>
 
     <div class="layout">
       <DevicePlacement
         class="placer"
         :devices="devices"
+        :palette-tree="treeMode ? paletteTree : undefined"
         :background="background"
         v-model:placements="placements"
         v-model:selected="selected"
@@ -109,6 +127,14 @@ header h1 {
 header span {
   color: #6b7280;
   font-size: 13px;
+}
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
 }
 .layout {
   display: flex;
