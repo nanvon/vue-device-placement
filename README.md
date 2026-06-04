@@ -203,6 +203,37 @@ npm test         # 运行核心逻辑单测
 npm run build    # 类型检查 + 库构建，产出 dist/
 ```
 
+## 发布到 npm
+
+发布前先确认本地改动已提交或已明确保留，然后升级版本号。若当前版本已发布到 npm，需要使用新的版本号。
+
+```bash
+npm version patch --no-git-tag-version
+```
+
+发布前自检：
+
+```bash
+npm test
+npm run build
+npm pack --dry-run
+```
+
+`npm pack --dry-run` 用于检查实际会进入 npm 包的文件。本项目通过 `files: ["dist"]` 限制发布内容，包内会包含构建产物以及 npm 默认包含的 `package.json`、`README.md` 等必要文件。
+
+确认无误后登录并发布：
+
+```bash
+npm login
+npm publish --access public
+```
+
+如果只想预演发布流程而不真正发布，可以运行：
+
+```bash
+npm publish --dry-run
+```
+
 ## 浏览器支持
 
 仅支持桌面浏览器（鼠标操作），本期不考虑触摸 / 移动端。
