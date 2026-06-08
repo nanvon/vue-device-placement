@@ -27,8 +27,9 @@ const imgEl = ref<HTMLImageElement | null>(null)
 const canvasEl = ref<HTMLElement | null>(null)
 const wrapEl = ref<HTMLElement | null>(null)
 const loadError = ref(false)
-// 底图自然宽高比（"w / h" 形式）；load 后写入，未知时为 null 不约束
-const imgRatio = ref<string | null>(null)
+// 底图自然宽高比（"w / h" 形式）；load 后写入，未知时为 undefined 不约束
+// 用 undefined 而非 null：Vue StyleValue 对 aspectRatio 这类已知属性只接受 string | undefined
+const imgRatio = ref<string>()
 const { toRelative, isInside, getRect } = useCanvasCoordinate(imgEl)
 const { state: zoom, wrapStyle, onWheel, onPanStart, resetView } = useZoomPan(
   canvasEl,
@@ -64,7 +65,7 @@ watch(
   () => {
     // 切换底图：清空旧比例，等新图 load 后按其自然尺寸重置，避免用旧比例约束新图
     loadError.value = false
-    imgRatio.value = null
+    imgRatio.value = undefined
   },
 )
 

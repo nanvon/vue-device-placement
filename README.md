@@ -205,66 +205,31 @@ npm run build    # 类型检查 + 库构建，产出 dist/
 
 ## 发布到 npm
 
-发布前先确认本地改动已提交或已明确保留，然后升级版本号。若当前版本已发布到 npm，需要使用新的版本号。
+先确认已 `npm login`，然后整段复制执行即可——构建、升版本、发布、同步镜像、验证一条龙：
 
 ```bash
-npm version patch --no-git-tag-version
+cd /Users/nanvon/Code/vue-device-placement && \
+npm run build && \
+npm version patch --no-git-tag-version && \
+npm publish --access public && \
+npm exec --yes --package=cnpm --registry=https://registry.npmmirror.com -- cnpm sync vue-device-placement && \
+V=$(node -p "require('./package.json').version") && sleep 3 && \
+curl -sL -o /dev/null -w "镜像 v$V: %{http_code}（200=成功）\n" \
+  "https://registry.npmmirror.com/vue-device-placement/-/vue-device-placement-$V.tgz"
 ```
 
-发布前自检：
+关键点：
 
-```bash
-npm test
-npm run build
-npm pack --dry-run
-```
+- `build` 放第一个且用 `&&` 串联——类型检查/构建一旦失败，后续全部不执行，避免发出不含最新改动的空包（`files: ["dist"]` 只发构建产物，dist 没重建就会发旧代码）。
+- `npm version patch` 自动把版本号 +1（已发布版本不可覆盖，必须用新号）；`--no-git-tag-version` 让工作区有未提交改动也能跑。
+- 同步用 `npm exec` 临时拉起 cnpm，本机没装 cnpm 也能用；最后自动按新版本号验证镜像 tarball，打印 `200` 即成功。
 
-`npm pack --dry-run` 用于检查实际会进入 npm 包的文件。本项目通过 `files: ["dist"]` 限制发布内容，包内会包含构建产物以及 npm 默认包含的 `package.json`、`README.md` 等必要文件。
+发完后，下游项目把依赖改成新版本号再安装即可（如本仓库消费方 `pnpm install`）。
 
-确认无误后登录并发布：
+### 排错
 
-```bash
-npm login
-npm publish --access public
-```
-
-如果只想预演发布流程而不真正发布，可以运行：
-
-```bash
-npm publish --dry-run
-```
-
-### npm 镜像同步
-
-发布新版本后，如果下游 CI 使用 `registry.npmmirror.com` 安装依赖，可能会遇到类似错误：
-
-```text
-ERR_PNPM_FETCH_404 GET https://registry.npmmirror.com/vue-device-placement/-/vue-device-placement-0.1.2.tgz: Not Found - 404
-```
-
-这通常不是包未发布成功，而是 npm 官方源已经有新版本，但 npmmirror 的 tarball 还没有同步到 CDN。处理方式是手动触发 npmmirror 同步：
-
-```bash
-npm exec --yes --package=cnpm --registry=https://registry.npmmirror.com --cache=/private/tmp/vue-device-placement-npm-cache -- cnpm sync vue-device-placement
-```
-
-如果本机已经安装 `cnpm`，也可以直接执行：
-
-```bash
-cnpm sync vue-device-placement
-```
-
-同步完成后，验证 CI 报错的 tarball 地址是否已经可下载，把版本号替换成实际发布版本：
-
-```bash
-curl -L -I https://registry.npmmirror.com/vue-device-placement/-/vue-device-placement-0.1.2.tgz
-```
-
-看到最终响应为 `HTTP/2 200` 或 `HTTP/1.1 200` 后，再重跑下游 CI。若同步后仍失败，优先让下游 CI 临时使用官方 npm 源安装：
-
-```bash
-pnpm install --registry=https://registry.npmjs.org/
-```
+- **CI 报 `ERR_PNPM_FETCH_404 ... npmmirror ... .tgz`**：npmjs 已有新版本但 npmmirror 还没同步 tarball。重跑上面的 `cnpm sync` 那行，或临时让 CI 走官方源：`pnpm install --registry=https://registry.npmjs.org/`。
+- **想先预演不真发**：把 `npm publish` 换成 `npm publish --dry-run`；用 `npm pack --dry-run` 可查看实际会进包的文件。
 
 ## 浏览器支持
 
