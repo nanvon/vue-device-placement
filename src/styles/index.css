@@ -180,6 +180,11 @@
 /* —— 单个点位 —— */
 .dp-marker {
   position: absolute;
+  /* width:max-content 必须显式声明：marker 为绝对定位且未设 width 时，其“收缩到内容”
+     宽度会被“到容器右边缘的剩余空间(容器宽 − left)”夹住，left 越接近 100% 可用宽越趋近 0。
+     若接入方有全局 img{max-width:100%}（如 Tailwind preflight），图标会随之被压扁、靠右
+     边缘逐渐变小直至消失。锁成 max-content 后宽度恒等于内容自然宽，与位置无关。 */
+  width: max-content;
   /* 锚点为图标中心；反向缩放抵消画布缩放，使点位视觉大小恒定（地图 pin 效果） */
   transform: translate(-50%, -50%) scale(calc(1 / var(--dp-zoom, 1)));
   cursor: grab;
