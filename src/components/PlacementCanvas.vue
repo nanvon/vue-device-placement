@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { Device, Placement } from '../types'
 import { useCanvasCoordinate } from '../composables/useCanvasCoordinate'
 import { useZoomPan } from '../composables/useZoomPan'
@@ -27,6 +27,8 @@ const imgEl = ref<HTMLImageElement | null>(null)
 const canvasEl = ref<HTMLElement | null>(null)
 const wrapEl = ref<HTMLElement | null>(null)
 const loadError = ref(false)
+// 底图自然宽高比（"w / h" 形式）；load 后写入，未知时为 null 不约束
+const imgRatio = ref<string | null>(null)
 const { toRelative, isInside, getRect } = useCanvasCoordinate(imgEl)
 const { state: zoom, wrapStyle, onWheel, onPanStart, resetView } = useZoomPan(
   canvasEl,
@@ -60,16 +62,35 @@ const showHint = computed(() => !showEmpty.value && props.placements.length === 
 watch(
   () => props.background,
   () => {
+    // 切换底图：清空旧比例，等新图 load 后按其自然尺寸重置，避免用旧比例约束新图
     loadError.value = false
+    imgRatio.value = null
   },
 )
 
 function onError() {
   loadError.value = true
 }
+// 记录底图自然宽高比，驱动包裹层 aspect-ratio：让 wrap 在舞台内等比收缩，盒子恒等于照片
+// 实际渲染区（§6.2）。否则普通 div 的 max-width/max-height 各自独立夹取、丢失比例，导致
+// object-fit:contain 留白，点位层据此对齐时把留白也算进"图内"，造成可在图外打点、且各页
+// 留白不同而坐标对不上。
+function applyImgRatio() {
+  const el = imgEl.value
+  if (el && el.naturalWidth && el.naturalHeight) {
+    imgRatio.value = `${el.naturalWidth} / ${el.naturalHeight}`
+  }
+}
 function onLoad() {
   loadError.value = false
+  applyImgRatio()
 }
+
+// 兜底：底图被缓存时 load 可能在监听绑定前已触发（img.complete 为真不再 fire），
+// 挂载后补读一次自然尺寸，避免 wrap 因缺 aspect-ratio 而塌陷
+onMounted(() => {
+  if (imgEl.value?.complete) applyImgRatio()
+})
 
 // 暴露给根组件做拖拽坐标换算 + 视图复位
 defineExpose({ toRelative, isInside, getRect, resetView })
@@ -87,7 +108,7 @@ defineExpose({ toRelative, isInside, getRect, resetView })
       <div
         ref="wrapEl"
         class="dp-bg-wrap"
-        :style="[wrapStyle, { '--dp-zoom': zoom.scale }]"
+        :style="[wrapStyle, { '--dp-zoom': zoom.scale, aspectRatio: imgRatio }]"
         @pointerdown="onPanStart"
       >
         <img

@@ -138,10 +138,12 @@
   padding: 12px;
 }
 
-/* 包裹层尺寸 = 图片实际渲染尺寸，点位层据此精确对齐（技术方案 §6.2） */
+/* 包裹层尺寸 = 图片实际渲染尺寸，点位层据此精确对齐（技术方案 §6.2）。
+   aspect-ratio 由 JS 在底图 load 时按自然宽高比写入；配合下方 max-* 让 wrap 在舞台内
+   等比收缩，避免普通 div 的 dual-max 独立夹取丢失比例而产生 object-fit 留白。 */
 .dp-bg-wrap {
   position: relative;
-  display: inline-flex;
+  display: inline-block;
   max-width: 100%;
   max-height: 100%;
 }
@@ -156,10 +158,10 @@
 
 .dp-bg {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  /* wrap 已锁定底图宽高比，图片满填即与照片完全重合：无变形、无留白。
+     保留 object-fit:contain 仅作 aspect-ratio 尚未写入（首帧/异常）时的兜底。 */
   object-fit: contain;
   -webkit-user-drag: none;
   user-select: none;

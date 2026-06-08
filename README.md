@@ -234,6 +234,38 @@ npm publish --access public
 npm publish --dry-run
 ```
 
+### npm 镜像同步
+
+发布新版本后，如果下游 CI 使用 `registry.npmmirror.com` 安装依赖，可能会遇到类似错误：
+
+```text
+ERR_PNPM_FETCH_404 GET https://registry.npmmirror.com/vue-device-placement/-/vue-device-placement-0.1.2.tgz: Not Found - 404
+```
+
+这通常不是包未发布成功，而是 npm 官方源已经有新版本，但 npmmirror 的 tarball 还没有同步到 CDN。处理方式是手动触发 npmmirror 同步：
+
+```bash
+npm exec --yes --package=cnpm --registry=https://registry.npmmirror.com --cache=/private/tmp/vue-device-placement-npm-cache -- cnpm sync vue-device-placement
+```
+
+如果本机已经安装 `cnpm`，也可以直接执行：
+
+```bash
+cnpm sync vue-device-placement
+```
+
+同步完成后，验证 CI 报错的 tarball 地址是否已经可下载，把版本号替换成实际发布版本：
+
+```bash
+curl -L -I https://registry.npmmirror.com/vue-device-placement/-/vue-device-placement-0.1.2.tgz
+```
+
+看到最终响应为 `HTTP/2 200` 或 `HTTP/1.1 200` 后，再重跑下游 CI。若同步后仍失败，优先让下游 CI 临时使用官方 npm 源安装：
+
+```bash
+pnpm install --registry=https://registry.npmjs.org/
+```
+
 ## 浏览器支持
 
 仅支持桌面浏览器（鼠标操作），本期不考虑触摸 / 移动端。
