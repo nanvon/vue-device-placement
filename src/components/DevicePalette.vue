@@ -25,9 +25,11 @@ const deviceMap = computed(() => {
   return map
 })
 
-// 有 tree 时递归展开为带深度的扁平项（关联不到设备的节点跳过）；无 tree 时退回平铺，深度统一为 0
+// 有 tree 时递归展开为带深度的扁平项（关联不到设备的节点跳过）；无 tree 时退回平铺，深度统一为 0。
+// 注意：只有 tree 为 undefined（未传）才回退平铺，显式传 []（筛选后无匹配）应渲染真空，
+// 否则调用方按条件筛选出空结果时会被这里误判成"没传树"而错误显示全部设备
 const flatItems = computed<FlatPaletteItem[]>(() => {
-  if (!props.tree?.length) {
+  if (props.tree === undefined) {
     return props.devices.map((device) => ({ device, depth: 0 }))
   }
 
