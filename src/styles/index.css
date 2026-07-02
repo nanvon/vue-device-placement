@@ -15,6 +15,9 @@
   --dp-indent: 16px; /* 树形列表每级缩进量 */
   --dp-canvas-bg: #f3f4f6;
   --dp-marker-size: 32px; /* 点位图标尺寸 */
+  --dp-cluster-size: 36px; /* 聚合圆点直径 */
+  --dp-cluster-color: var(--dp-primary-color); /* 聚合圆点底色，默认复用主题色 */
+  --dp-cluster-text-color: #ffffff;
   --dp-label-max-width: 96px; /* 名称最大宽度（超出省略） */
   --dp-label-bg: rgba(0, 0, 0, 0.65); /* 名称底色 */
   --dp-label-color: #ffffff;
@@ -148,6 +151,11 @@
   max-height: 100%;
 }
 
+/* 点击聚合圆点触发聚焦时的瞬时过渡；不做全局 transition，避免拖累滚轮缩放/拖拽平移的即时手感 */
+.dp-bg-wrap.is-focusing {
+  transition: transform 0.25s ease;
+}
+
 /* 放大后画布可拖拽平移 */
 .dp-canvas.is-zoomed {
   cursor: grab;
@@ -173,7 +181,8 @@
   inset: 0;
   pointer-events: none;
 }
-.dp-marker-layer .dp-marker {
+.dp-marker-layer .dp-marker,
+.dp-marker-layer .dp-cluster {
   pointer-events: auto;
 }
 
@@ -274,6 +283,33 @@
 .dp-marker:hover .dp-marker-remove,
 .dp-marker.is-selected .dp-marker-remove {
   display: flex;
+}
+
+/* —— 聚合圆点（cluster） —— */
+.dp-cluster {
+  position: absolute;
+  width: max-content;
+  /* 与 .dp-marker 一致的反向缩放，保证圆点视觉大小恒定 */
+  transform: translate(-50%, -50%) scale(calc(1 / var(--dp-zoom, 1)));
+  cursor: pointer;
+  z-index: 15; /* 介于 marker 默认与 hover(10)/选中(20) 之间，不抢戏也不被压住 */
+}
+.dp-cluster-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--dp-cluster-size);
+  height: var(--dp-cluster-size);
+  border-radius: 50%;
+  background: var(--dp-cluster-color);
+  color: var(--dp-cluster-text-color);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+.dp-cluster:hover .dp-cluster-dot {
+  transform: scale(1.1);
 }
 
 /* —— 画布提示 / 空态 —— */

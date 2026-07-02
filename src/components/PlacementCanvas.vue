@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import type { Device, Placement } from '../types'
+import type { ClusterMember, Device, Placement } from '../types'
 import { useCanvasCoordinate } from '../composables/useCanvasCoordinate'
 import { useZoomPan } from '../composables/useZoomPan'
+import { useCluster } from '../composables/useCluster'
+import { boundingBoxOf } from '../core/cluster'
 import PlacementMarker from './PlacementMarker.vue'
+import ClusterMarker from './ClusterMarker.vue'
 
 const props = defineProps<{
   background: string
@@ -15,12 +18,15 @@ const props = defineProps<{
   readonly?: boolean
   /** 是否启用底图缩放/平移 */
   zoomable?: boolean
+  /** 是否启用点位聚合（仅在 readonly=true 时生效） */
+  cluster?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'marker-pointerdown', payload: { deviceId: string; event: PointerEvent }): void
   (e: 'marker-remove', deviceId: string): void
   (e: 'marker-select', deviceId: string): void
+  (e: 'cluster-click', payload: { members: ClusterMember[] }): void
 }>()
 
 const imgEl = ref<HTMLImageElement | null>(null)
@@ -31,16 +37,13 @@ const loadError = ref(false)
 // 用 undefined 而非 null：Vue StyleValue 对 aspectRatio 这类已知属性只接受 string | undefined
 const imgRatio = ref<string>()
 const { toRelative, isInside, getRect } = useCanvasCoordinate(imgEl)
-const { state: zoom, wrapStyle, onWheel, onPanStart, resetView } = useZoomPan(
-  canvasEl,
-  wrapEl,
-  () => props.zoomable !== false,
-)
+const { state: zoom, wrapStyle, onWheel, onPanStart, resetView, focusRect, getBase, getBaseSize } =
+  useZoomPan(canvasEl, wrapEl, () => props.zoomable !== false)
 
-/** 双击空白区域复位（避免双击点位时误触发） */
+/** 双击空白区域复位（避免双击点位/聚合圆点时误触发） */
 function onCanvasDblClick(e: MouseEvent) {
   if (props.zoomable === false) return
-  if ((e.target as HTMLElement).closest('.dp-marker')) return
+  if ((e.target as HTMLElement).closest('.dp-marker, .dp-cluster')) return
   resetView()
 }
 
@@ -56,6 +59,37 @@ const renderable = computed(() =>
     .map((placement) => ({ placement, device: deviceMap.value.get(placement.deviceId) }))
     .filter((x): x is { placement: Placement; device: Device } => Boolean(x.device)),
 )
+
+// 聚合仅在只读展示 + 显式开启 + 底图已就绪（imgRatio 就位，避免用未定型的容器尺寸误判密度）时生效
+const clusterEnabled = computed(
+  () => Boolean(props.readonly) && Boolean(props.cluster) && imgRatio.value !== undefined,
+)
+
+const { groups: clusterGroups, observeResize } = useCluster({
+  items: () => renderable.value,
+  getBaseSize: () => getBaseSize(),
+  scale: () => zoom.scale,
+  enabled: () => clusterEnabled.value,
+  markerSizeEl: () => wrapEl.value,
+})
+watch(wrapEl, observeResize, { immediate: true })
+
+/** 点击聚合圆点：聚焦到该簇（zoomable=false 时跳过聚焦，避免和缩放开关打架），并对外抛事件 */
+function onClusterClick(members: ClusterMember[]) {
+  if (props.zoomable !== false) {
+    const base = getBase()
+    if (base) {
+      const box = boundingBoxOf(members.map((m) => m.placement))
+      focusRect({
+        left: box.minX * base.width,
+        top: box.minY * base.height,
+        width: (box.maxX - box.minX) * base.width,
+        height: (box.maxY - box.minY) * base.height,
+      })
+    }
+  }
+  emit('cluster-click', { members })
+}
 
 const showEmpty = computed(() => !props.background || loadError.value)
 const showHint = computed(() => !showEmpty.value && props.placements.length === 0)
@@ -109,6 +143,7 @@ defineExpose({ toRelative, isInside, getRect, resetView })
       <div
         ref="wrapEl"
         class="dp-bg-wrap"
+        :class="{ 'is-focusing': zoom.focusing }"
         :style="[wrapStyle, { '--dp-zoom': zoom.scale, aspectRatio: imgRatio }]"
         @pointerdown="onPanStart"
       >
@@ -122,21 +157,31 @@ defineExpose({ toRelative, isInside, getRect, resetView })
           @load="onLoad"
         />
         <div class="dp-marker-layer">
-          <PlacementMarker
-            v-for="item in renderable"
-            :key="item.placement.deviceId"
-            :device="item.device"
-            :placement="item.placement"
-            :selected="selected === item.placement.deviceId"
-            :dragging="draggingId === item.placement.deviceId"
-            :readonly="readonly"
-            @pointerdown="emit('marker-pointerdown', { deviceId: item.placement.deviceId, event: $event })"
-            @remove="emit('marker-remove', item.placement.deviceId)"
-            @select="emit('marker-select', item.placement.deviceId)"
-          >
-            <template v-if="$slots.marker" #default="s"><slot name="marker" v-bind="s" /></template>
-            <template v-if="$slots.icon" #icon="s"><slot name="icon" v-bind="s" /></template>
-          </PlacementMarker>
+          <template v-for="item in clusterGroups" :key="item.key">
+            <PlacementMarker
+              v-if="item.kind === 'single'"
+              :device="item.device!"
+              :placement="item.placement!"
+              :selected="selected === item.placement!.deviceId"
+              :dragging="draggingId === item.placement!.deviceId"
+              :readonly="readonly"
+              @pointerdown="emit('marker-pointerdown', { deviceId: item.placement!.deviceId, event: $event })"
+              @remove="emit('marker-remove', item.placement!.deviceId)"
+              @select="emit('marker-select', item.placement!.deviceId)"
+            >
+              <template v-if="$slots.marker" #default="s"><slot name="marker" v-bind="s" /></template>
+              <template v-if="$slots.icon" #icon="s"><slot name="icon" v-bind="s" /></template>
+            </PlacementMarker>
+            <ClusterMarker
+              v-else
+              :members="item.members!"
+              :x="item.x"
+              :y="item.y"
+              @click="onClusterClick(item.members!)"
+            >
+              <template v-if="$slots.cluster" #default="s"><slot name="cluster" v-bind="s" /></template>
+            </ClusterMarker>
+          </template>
         </div>
       </div>
 

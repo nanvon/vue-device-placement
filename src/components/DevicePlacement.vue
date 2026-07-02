@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Device, PaletteNode, Placement } from '../types'
+import type { ClusterMember, Device, PaletteNode, Placement } from '../types'
 import { sanitizePlacements } from '../core/placement'
 import { usePlacements } from '../composables/usePlacements'
 import { useHighlight } from '../composables/useHighlight'
@@ -28,6 +28,8 @@ const props = withDefaults(
     readonly?: boolean
     /** 是否启用底图缩放/平移（滚轮缩放、拖空白平移、双击复位） */
     zoomable?: boolean
+    /** 是否启用点位聚合：密集点位合并显示为数字圆点，仅在 readonly=true 时生效 */
+    cluster?: boolean
   }>(),
   {
     placements: () => [],
@@ -35,6 +37,7 @@ const props = withDefaults(
     highlightDuration: 3000,
     readonly: false,
     zoomable: true,
+    cluster: false,
   },
 )
 
@@ -44,6 +47,7 @@ const emit = defineEmits<{
   (e: 'place', deviceId: string, pos: { x: number; y: number }): void
   (e: 'move', deviceId: string, pos: { x: number; y: number }): void
   (e: 'remove', deviceId: string): void
+  (e: 'cluster-click', payload: { members: ClusterMember[] }): void
 }>()
 
 const canvasRef = ref<InstanceType<typeof PlacementCanvas> | null>(null)
@@ -168,13 +172,16 @@ const showGhost = computed(
       :dragging-id="draggingId"
       :readonly="readonly"
       :zoomable="zoomable"
+      :cluster="cluster"
       @marker-pointerdown="onMarkerPointerDown"
       @marker-remove="onMarkerRemove"
       @marker-select="selectDevice"
+      @cluster-click="emit('cluster-click', $event)"
     >
       <template v-if="$slots.marker" #marker="s"><slot name="marker" v-bind="s" /></template>
       <template v-if="$slots.icon" #icon="s"><slot name="icon" v-bind="s" /></template>
       <template v-if="$slots.empty" #empty><slot name="empty" /></template>
+      <template v-if="$slots.cluster" #cluster="s"><slot name="cluster" v-bind="s" /></template>
     </PlacementCanvas>
 
     <!-- 拖拽跟随光标的浮层（F8：拖拽视觉反馈） -->

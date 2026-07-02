@@ -42,3 +42,9 @@ export interface Point {
   x: number
   y: number
 }
+
+/** 聚合圆点内的单个成员（#cluster 插槽作用域参数类型） */
+export interface ClusterMember {
+  device: Device
+  placement: Placement
+}

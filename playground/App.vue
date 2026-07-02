@@ -60,6 +60,46 @@ function record(msg: string) {
 function fmt(pos: { x: number; y: number }) {
   return `(${pos.x.toFixed(3)}, ${pos.y.toFixed(3)})`
 }
+
+// —— 聚合（cluster）演示：密集堆叠的点位 + 松散/独立点位，验证聚合、拆散、点击聚焦、
+// 不同 marker 尺寸下聚合半径变化等交互 ——
+const clusterDevices = ref<Device[]>(
+  Array.from({ length: 14 }, (_, i) => ({
+    id: `dense-${i}`,
+    name: `设备-${i + 1}`,
+    icon: icon('📡', '#dbeafe'),
+  })),
+)
+
+const clusterPlacements = ref<Placement[]>([
+  // 密集簇 A：5 个点挤在左上角
+  { deviceId: 'dense-0', x: 0.12, y: 0.18 },
+  { deviceId: 'dense-1', x: 0.14, y: 0.2 },
+  { deviceId: 'dense-2', x: 0.13, y: 0.22 },
+  { deviceId: 'dense-3', x: 0.15, y: 0.19 },
+  { deviceId: 'dense-4', x: 0.11, y: 0.21 },
+  // 密集簇 B：4 个点挤在右下角
+  { deviceId: 'dense-5', x: 0.62, y: 0.78 },
+  { deviceId: 'dense-6', x: 0.64, y: 0.8 },
+  { deviceId: 'dense-7', x: 0.63, y: 0.76 },
+  { deviceId: 'dense-8', x: 0.65, y: 0.79 },
+  // 松散簇 C：间距稍大，marker 尺寸变化时聚合结果会跟着变化
+  // （24px 时三点都独立；32px 默认时前两点合并、第三点独立；48px 时三点合并成一簇）
+  { deviceId: 'dense-9', x: 0.85, y: 0.15 },
+  { deviceId: 'dense-10', x: 0.9, y: 0.18 },
+  { deviceId: 'dense-11', x: 0.93, y: 0.14 },
+  // 独立点位：验证非密集区域保持独立展示
+  { deviceId: 'dense-12', x: 0.5, y: 0.5 },
+  { deviceId: 'dense-13', x: 0.3, y: 0.85 },
+])
+
+const clusterEnabled = ref(true)
+const denseMarkerSize = ref(32)
+const clusterLog = ref<string[]>([])
+function onClusterClick(payload: { members: { device: Device; placement: Placement }[] }) {
+  clusterLog.value.unshift(`聚焦簇：${payload.members.map((m) => m.device.name).join('、')}`)
+  if (clusterLog.value.length > 10) clusterLog.value.pop()
+}
 </script>
 
 <template>
@@ -98,6 +138,50 @@ function fmt(pos: { x: number; y: number }) {
         </ul>
       </aside>
     </div>
+
+    <section class="cluster-demo">
+      <header>
+        <h2>点位聚合（cluster）演示</h2>
+        <label class="tree-toggle">
+          <input v-model="clusterEnabled" type="checkbox" />
+          开启聚合
+        </label>
+        <label class="tree-toggle">
+          marker 尺寸：
+          <select v-model.number="denseMarkerSize">
+            <option :value="24">24px</option>
+            <option :value="32">32px（默认）</option>
+            <option :value="48">48px</option>
+          </select>
+        </label>
+      </header>
+
+      <div class="layout">
+        <DevicePlacement
+          :key="denseMarkerSize"
+          class="placer"
+          :style="{ '--dp-marker-size': denseMarkerSize + 'px' }"
+          :devices="clusterDevices"
+          :background="background"
+          :placements="clusterPlacements"
+          readonly
+          :cluster="clusterEnabled"
+          @cluster-click="onClusterClick"
+        >
+          <template #cluster="{ count }">
+            <div class="demo-cluster-dot">{{ count }}</div>
+          </template>
+        </DevicePlacement>
+
+        <aside class="side">
+          <h2>点击聚合圆点日志</h2>
+          <ul class="log">
+            <li v-for="(l, i) in clusterLog" :key="i">{{ l }}</li>
+            <li v-if="clusterLog.length === 0" class="empty">（暂无，试着点击图中的数字圆点，或滚轮放大观察拆散）</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -191,5 +275,32 @@ header span {
 .log li.empty {
   color: #9ca3af;
   font-family: inherit;
+}
+.cluster-demo {
+  margin-top: 24px;
+}
+.cluster-demo header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.cluster-demo header h2 {
+  font-size: 16px;
+  margin: 0;
+}
+.demo-cluster-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
 }
 </style>

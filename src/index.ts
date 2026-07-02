@@ -13,7 +13,7 @@ export { DevicePlacement }
 export default plugin
 
 // 类型
-export type { Device, PaletteNode, Placement, Point } from './types'
+export type { ClusterMember, Device, PaletteNode, Placement, Point } from './types'
 
 // 核心纯函数（供需要在组件外处理点位数据的高级用户使用）
 export {
@@ -24,3 +24,5 @@ export {
 } from './core/placement'
 export { clamp01, toNormalized } from './core/coordinate'
 export type { Rect } from './core/coordinate'
+export { clusterize, boundingBoxOf } from './core/cluster'
+export type { ClusterInput, ClusterGroup, ClusterizeOptions } from './core/cluster'

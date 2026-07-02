@@ -40,16 +40,19 @@ vue-device-placement/
 │   │   ├── DevicePlacement.vue   # 根组件（编排、数据流）
 │   │   ├── DevicePalette.vue     # 左侧设备列表
 │   │   ├── PlacementCanvas.vue   # 中间底图画布
-│   │   └── PlacementMarker.vue   # 单个点位（图标+名称+删除×）
+│   │   ├── PlacementMarker.vue   # 单个点位（图标+名称+删除×）
+│   │   └── ClusterMarker.vue     # 聚合圆点（数字徽标，仅 cluster 生效时渲染）
 │   ├── composables/
 │   │   ├── usePlacements.ts       # 点位状态：upsert/remove/派生已放置集合
 │   │   ├── useCanvasCoordinate.ts # 像素 ↔ 归一化坐标换算
 │   │   ├── useDrag.ts             # 拖拽（列表→画布、画布内移动）
 │   │   ├── useHighlight.ts        # 高亮选中 + 3 秒定时取消
-│   │   └── useZoomPan.ts          # 底图滚轮缩放 + 拖拽平移 + 复位
+│   │   ├── useZoomPan.ts          # 底图滚轮缩放 + 拖拽平移 + 复位 + 聚焦到区域
+│   │   └── useCluster.ts          # 点位聚合的响应式包装（分组、marker 尺寸探测）
 │   ├── core/                     # 纯函数（无 Vue 依赖，单测对象）
 │   │   ├── coordinate.ts          # toNormalized / clamp01
-│   │   └── placement.ts           # upsert / remove / isPlaced / sanitize
+│   │   ├── placement.ts           # upsert / remove / isPlaced / sanitize
+│   │   └── cluster.ts             # clusterize（贪心按种子距离分组）/ boundingBoxOf
 │   └── styles/
 │       └── index.css             # 变量定义 + 组件样式
 ├── playground/                   # 本地演示页（实时看数据）
@@ -57,7 +60,8 @@ vue-device-placement/
 │   └── main.ts
 ├── tests/                        # Vitest 单测
 │   ├── coordinate.test.ts
-│   └── placement.test.ts
+│   ├── placement.test.ts
+│   └── cluster.test.ts
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts
@@ -80,6 +84,7 @@ vue-device-placement/
 | `highlightDuration` | `number` | 否 | `3000` | 高亮自动取消时长（毫秒） |
 | `readonly` | `boolean` | 否 | `false` | 只读模式（禁用拖拽与删除）。预留扩展，P1 |
 | `zoomable` | `boolean` | 否 | `true` | 是否启用底图缩放/平移（滚轮缩放、拖空白平移、双击复位）。关闭时复位并禁用相关交互 |
+| `cluster` | `boolean` | 否 | `false` | 是否启用点位聚合；**仅在 `readonly=true` 时生效**，`readonly=false` 时即使传入也不生效 |
 
 > 主题相关（主色、图标尺寸等）**不走 props，走 CSS 变量**（见 §7），避免 props 膨胀。
 
@@ -92,6 +97,7 @@ vue-device-placement/
 | `place` | `(deviceId: string, pos: {x,y})` | 新建一个点位时（接入方增量保存用） |
 | `move` | `(deviceId: string, pos: {x,y})` | 移动点位时 |
 | `remove` | `(deviceId: string)` | 删除点位时 |
+| `cluster-click` | `(payload: { members: ClusterMember[] })` | 点击聚合圆点时，除了内置的自动聚焦动作外再额外抛出，供接入方附加逻辑 |
 
 > 同时提供"完整数组"和"语义事件"两套出口：要整表覆盖就用 `update:placements`，要增量保存就监听 `place/move/remove`。对应 PRD §7.7 两种存库策略。
 
@@ -107,6 +113,7 @@ vue-device-placement/
 | `icon` | `{ device, selected }` | 只自定义图标部分，保留默认名称与删除× |
 | `device-item` | `{ device, placed }` | 自定义左侧列表项外观 |
 | `empty` | — | 画布空状态（无底图或无点位时） |
+| `cluster` | `{ members: ClusterMember[], count: number }` | 自定义聚合圆点外观（覆盖默认的"圆形+数字"），`members` 为簇内设备与点位数据，接入方可据此实现例如按业务状态着色 |
 
 ### 3.4 使用示例（接入方视角）
 
@@ -193,7 +200,8 @@ export interface Placement {
 - `useCanvasCoordinate`：提供"鼠标像素 → 归一化坐标"换算。
 - `useDrag`：拖拽状态机（列表拖入 / 画布内移动）。
 - `useHighlight`：`selected` + 定时器管理；根组件同时维护内部 `selected`，保证未绑定 `v-model:selected` 时内置高亮仍可用。
-- `useZoomPan`：底图滚轮缩放（以光标为焦点）、拖空白平移（边界钳制）、双击复位；受 `zoomable` 开关控制。
+- `useZoomPan`：底图滚轮缩放（以光标为焦点）、拖空白平移（边界钳制）、双击复位、聚焦到指定区域（`focusRect`，供聚合圆点点击用）；受 `zoomable` 开关控制。
+- `useCluster`：点位聚合的响应式包装，`enabled=false` 时恒等映射为独立点位，`enabled=true` 时按当前缩放换算像素距离调用 `core/cluster.ts` 的 `clusterize` 分组。
 
 ---
 
@@ -286,6 +294,26 @@ onUnmounted(() => clearTimeout(timer))   // 防泄漏
 - **坐标换算天然正确**：点位渲染用百分比、像素↔归一化换算依赖 `img.getBoundingClientRect()`。缩放后该 rect 实时反映 img 的真实显示区域，**无需为缩放额外改动坐标逻辑**（§6.2 的红利在缩放场景下依旧成立）。点位图标再用 `scale(1/zoom)` 反向抵消，避免随底图一起被放大。
 - **开关**：`useZoomPan` 接收 `enabled` getter（来自 `zoomable` prop）。关闭时滚轮/平移/双击直接 return，并 `watch` 到关闭时复位视图。
 
+### 6.8 点位聚合（cluster）⭐
+
+**判定依据：** `PlacementMarker` 用 `scale(1/var(--dp-zoom))` 反向缩放保证图标视觉大小恒定（§7 主题变量），因此两点在当前缩放下的**真实屏幕像素距离**可以精确算出：`归一化坐标差 × 基准像素宽高 × scale`，不需要逐帧读 DOM 猜测。
+
+**分组算法（`core/cluster.ts` 的 `clusterize`，纯函数，可单测）：** 贪心按种子点距离分组——遍历未分组点位作为种子，收纳"到种子欧氏距离 ≤ 半径"的其余未分组点入同一簇。**距离恒以种子为基准**，不是簇内任意成员，避免 A-B 近、B-C 近但 A-C 远时被链式并成一簇，簇的地理跨度因此被限制在 `2×半径` 内、形状可预测。
+
+**响应式重算时机（`useCluster.ts`）：** 用 Vue `computed` 而非 `watch`——依赖自动收集，`scale`/点位数据变化时天然触发重算；容器尺寸变化不是响应式的（`getBoundingClientRect`/`offsetWidth` 不参与依赖收集），用 `ResizeObserver` 桥接成一个响应式计数器。**刻意不依赖 `tx/ty`**（平移不改变点位间相对像素距离），避免拖拽平移时无意义的重复计算。
+
+**基准尺寸的一个时序坑：** `useZoomPan` 新增的 `getBaseSize()` 一开始用 `getBoundingClientRect().width / state.scale` 反推，但当 `focusRect()` 刚把 `state.scale` 改到新值、浏览器还没来得及重绘应用新的 `transform` 时，`getBoundingClientRect()` 读到的仍是旧视觉尺寸，除以已经是新值的 `state.scale` 会算出错误（偏小）的基准尺寸，导致聚合分组"缩放后该拆散却没拆散"。**解法：改用 `offsetWidth`/`offsetHeight`**——这是元素自身的布局尺寸，CSS `transform` 不影响它，天然不存在"视觉尺寸滞后于已变化的响应式状态"这个问题。
+
+**运行时探测点位图标的实际像素尺寸（聚合半径 = 1.2 × 该尺寸）：** 不能直接读 `--dp-marker-size` 变量字符串做 `parseFloat`（`1.5rem` 这类非 px 单位会被错误解析成 `1.5`）。优先在画布内查找一个真实渲染的 `.dp-marker-icon` 元素，直接读其 `getBoundingClientRect().width`（浏览器已完成任意单位换算的最终 px 值）；画布内暂无独立 marker（比如全部被聚合，或接入方用 `#marker` 插槽完全自定义、不含 `.dp-marker-icon` 类名——例如消防监视页面）时，退化为创建一个隐藏探测元素、把 CSS 变量原始字符串赋给它的 `width` 再读取渲染结果，交给浏览器完成单位换算而不是自己写正则解析；两者都不可用则兜底默认值 32。
+
+**告警等业务状态的可见性：** 组件的 `Device` 类型不理解"告警"概念。聚合圆点通过 `#cluster` 插槽把簇内成员（`{ device, placement }[]`）交给接入方，由接入方按自己的业务数据判断样式（见 PRD §3.2 的排除项）。
+
+**点击聚合圆点聚焦（`focusRect`）：** 复用 `getBase()`（含 `left/top`）与已有的 `clampTranslate()`；目标 scale 取"让簇的归一化包围盒（`boundingBoxOf`）完整、居中进入可视区域"所需缩放比，双向 clamp 到 `[MIN_SCALE, MAX_SCALE]`——簇跨度极小时可能远超 `MAX_SCALE`，钳到上限即可，不要求必须贴边填满。`zoomable=false` 时跳过聚焦（否则会和 `useZoomPan` 里"`enabled=false` 强制复位"的既有逻辑打架），但仍抛出 `cluster-click`。聚焦触发的短暂 `state.focusing` 驱动 `.dp-bg-wrap.is-focusing` 的一次性 CSS transition，不做全局 transition（会拖累滚轮缩放/拖拽平移的即时手感）。
+
+**双击复位冲突：** `onCanvasDblClick` 的目标排除判断从只排除 `.dp-marker` 扩展为同时排除 `.dp-cluster`，避免点击聚合圆点后被误判成双击空白而复位。
+
+**已知的次要限制（不影响当前实际接入场景，未处理）：** 若接入方在运行时动态改变 `--dp-marker-size`（而非启动时静态声明），由于 CSS 变量变化本身不是 Vue 响应式依赖，聚合分组不会自动重算，需要一次额外的 `scale`/数据/容器尺寸变化才会带动它一起更新。当前所有实际接入页面均未有此动态切换场景。
+
 ---
 
 ## 7. 样式与主题方案
@@ -298,6 +326,9 @@ onUnmounted(() => clearTimeout(timer))   // 防泄漏
   --dp-primary-color: #2f80ed;     /* 主题/高亮色 */
   --dp-palette-width: 200px;       /* 左侧列表宽度 */
   --dp-marker-size: 32px;          /* 点位图标尺寸 */
+  --dp-cluster-size: 36px;         /* 聚合圆点直径 */
+  --dp-cluster-color: var(--dp-primary-color); /* 聚合圆点底色，默认复用主题色 */
+  --dp-cluster-text-color: #fff;
   --dp-label-bg: rgba(0,0,0,.65);  /* 名称底色 */
   --dp-label-color: #fff;
   --dp-highlight-scale: 1.25;      /* 高亮放大倍数 */
@@ -356,6 +387,7 @@ build: {
 |----------|------|
 | `coordinate.test.ts` | `toNormalized` 换算正确、越界被 `clamp01` 钳到 [0,1] |
 | `placement.test.ts` | `upsert` 同 id 不新增只改坐标、`remove`、`isPlaced`、`sanitize` 过滤脏数据 |
+| `cluster.test.ts` | `clusterize` 距离内合并/距离外不合并、`minCount` 边界、按种子距离而非链式传递、顺序敏感性、`radiusPx<=0` 兜底、空输入、坐标重合；`boundingBoxOf` 多点/单点/空数组 |
 
 ---
 
