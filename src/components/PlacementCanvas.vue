@@ -70,7 +70,10 @@ const { groups: clusterGroups, observeResize } = useCluster({
   getBaseSize: () => getBaseSize(),
   scale: () => zoom.scale,
   enabled: () => clusterEnabled.value,
-  markerSizeEl: () => wrapEl.value,
+  // 探测容器必须用未被 transform 的 canvasEl：wrapEl 是 scale 变换的施加对象，
+  // 探测元素若挂在其下，量出的 px 会被当前缩放倍数放大，聚合半径随 scale 等比膨胀，
+  // 导致放大后聚合永远不拆分（见 useCluster.ts 中 markerSizeEl 的约束说明）
+  markerSizeEl: () => canvasEl.value,
 })
 watch(wrapEl, observeResize, { immediate: true })
 

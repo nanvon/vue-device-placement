@@ -21,7 +21,12 @@ export interface UseClusterOptions {
   scale: () => number
   /** 是否启用聚合（由调用方综合 readonly / cluster prop / 底图是否就绪 判断） */
   enabled: () => boolean
-  /** 用于探测实际 marker 像素尺寸的容器元素 */
+  /**
+   * 用于探测实际 marker 像素尺寸的容器元素。
+   * 必须传未被 CSS transform 缩放的祖先节点（如画布外框），不能传被 scale(zoom) 施加的
+   * 元素（如底图 wrap）——否则兜底探测出的 px 会被当前缩放倍数放大，聚合半径随 scale
+   * 等比膨胀，导致放大后聚合永远不拆分。
+   */
   markerSizeEl: () => HTMLElement | null
 }
 
@@ -33,6 +38,7 @@ const RADIUS_FACTOR = 1.2
  * 探测运行时实际生效的 marker 像素尺寸：优先读画布内真实渲染的 .dp-marker-icon
  * 元素尺寸（浏览器已完成任意单位换算的最终 px 值，最可靠）；画布内暂无独立 marker
  * （比如全部被聚合）时，退化为用隐藏探测元素解析 --dp-marker-size 变量的实际单位。
+ * 兜底分支要求 el 不在被 transform scale 的子树内，否则探测值会被缩放污染。
  */
 function readMarkerSizePx(el: HTMLElement | null): number {
   if (!el) return DEFAULT_MARKER_SIZE
