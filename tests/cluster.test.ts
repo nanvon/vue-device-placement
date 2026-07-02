@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clusterize, boundingBoxOf } from '../src/core/cluster'
+import { clusterize, boundingBoxOf, spiderfyOffsets } from '../src/core/cluster'
 
 describe('clusterize', () => {
   it('两点距离在半径内且达到 minCount 时合并为一簇', () => {
@@ -121,5 +121,41 @@ describe('boundingBoxOf', () => {
 
   it('空数组输入返回全 0', () => {
     expect(boundingBoxOf([])).toEqual({ minX: 0, minY: 0, maxX: 0, maxY: 0 })
+  })
+})
+
+describe('spiderfyOffsets', () => {
+  it('count 为 0 时返回空数组', () => {
+    expect(spiderfyOffsets(0, 10)).toEqual([])
+  })
+
+  it('count 为 1 时返回原点（不偏移）', () => {
+    expect(spiderfyOffsets(1, 10)).toEqual([{ dx: 0, dy: 0 }])
+  })
+
+  it('每个偏移到圆心的距离都等于半径', () => {
+    const offsets = spiderfyOffsets(5, 20)
+    expect(offsets).toHaveLength(5)
+    for (const { dx, dy } of offsets) {
+      expect(Math.sqrt(dx * dx + dy * dy)).toBeCloseTo(20, 5)
+    }
+  })
+
+  it('两点时互为相反方向，间距等于直径', () => {
+    const [a, b] = spiderfyOffsets(2, 10)
+    expect(a.dx + b.dx).toBeCloseTo(0, 5)
+    expect(a.dy + b.dy).toBeCloseTo(0, 5)
+    const dist = Math.sqrt((a.dx - b.dx) ** 2 + (a.dy - b.dy) ** 2)
+    expect(dist).toBeCloseTo(20, 5)
+  })
+
+  it('偏移按角度均匀分布（相邻夹角相同）', () => {
+    const offsets = spiderfyOffsets(4, 10)
+    const angles = offsets.map(({ dx, dy }) => Math.atan2(dy, dx))
+    for (let i = 1; i < angles.length; i++) {
+      let delta = angles[i] - angles[i - 1]
+      if (delta < 0) delta += 2 * Math.PI
+      expect(delta).toBeCloseTo(Math.PI / 2, 5)
+    }
   })
 })

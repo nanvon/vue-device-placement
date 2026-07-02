@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档版本 | v0.1（待评审） |
-| 更新日期 | 2026-05-29 |
+| 更新日期 | 2026-07-02（新增 §6.8 最大缩放下的摊开兜底） |
 | 关联文档 | [PRD.md](./PRD.md) v0.1 |
 | 一句话技术栈 | Vue 3 + TypeScript + Vite 库模式，纯 CSS（CSS 变量主题），Vitest 测核心逻辑，发布 npm |
 
@@ -47,12 +47,12 @@ vue-device-placement/
 │   │   ├── useCanvasCoordinate.ts # 像素 ↔ 归一化坐标换算
 │   │   ├── useDrag.ts             # 拖拽（列表→画布、画布内移动）
 │   │   ├── useHighlight.ts        # 高亮选中 + 3 秒定时取消
-│   │   ├── useZoomPan.ts          # 底图滚轮缩放 + 拖拽平移 + 复位 + 聚焦到区域
-│   │   └── useCluster.ts          # 点位聚合的响应式包装（分组、marker 尺寸探测）
+│   │   ├── useZoomPan.ts          # 底图滚轮缩放 + 拖拽平移 + 复位 + 聚焦到区域（导出 MAX_SCALE）
+│   │   └── useCluster.ts          # 点位聚合的响应式包装（分组、marker 尺寸探测、最大缩放下的摊开兜底）
 │   ├── core/                     # 纯函数（无 Vue 依赖，单测对象）
 │   │   ├── coordinate.ts          # toNormalized / clamp01
 │   │   ├── placement.ts           # upsert / remove / isPlaced / sanitize
-│   │   └── cluster.ts             # clusterize（贪心按种子距离分组）/ boundingBoxOf
+│   │   └── cluster.ts             # clusterize（贪心按种子距离分组）/ boundingBoxOf / spiderfyOffsets（摊开像素偏移）
 │   └── styles/
 │       └── index.css             # 变量定义 + 组件样式
 ├── playground/                   # 本地演示页（实时看数据）
@@ -201,7 +201,7 @@ export interface Placement {
 - `useDrag`：拖拽状态机（列表拖入 / 画布内移动）。
 - `useHighlight`：`selected` + 定时器管理；根组件同时维护内部 `selected`，保证未绑定 `v-model:selected` 时内置高亮仍可用。
 - `useZoomPan`：底图滚轮缩放（以光标为焦点）、拖空白平移（边界钳制）、双击复位、聚焦到指定区域（`focusRect`，供聚合圆点点击用）；受 `zoomable` 开关控制。
-- `useCluster`：点位聚合的响应式包装，`enabled=false` 时恒等映射为独立点位，`enabled=true` 时按当前缩放换算像素距离调用 `core/cluster.ts` 的 `clusterize` 分组。
+- `useCluster`：点位聚合的响应式包装，`enabled=false` 时恒等映射为独立点位，`enabled=true` 时按当前缩放换算像素距离调用 `core/cluster.ts` 的 `clusterize` 分组；分组结果若已到 `MAX_SCALE`（见 `useZoomPan`）仍未拆散，改调用 `spiderfyOffsets` 环形摊开为独立点位（见 §6.8）。
 
 ---
 
@@ -310,6 +310,8 @@ onUnmounted(() => clearTimeout(timer))   // 防泄漏
 
 **点击聚合圆点聚焦（`focusRect`）：** 复用 `getBase()`（含 `left/top`）与已有的 `clampTranslate()`；目标 scale 取"让簇的归一化包围盒（`boundingBoxOf`）完整、居中进入可视区域"所需缩放比，双向 clamp 到 `[MIN_SCALE, MAX_SCALE]`——簇跨度极小时可能远超 `MAX_SCALE`，钳到上限即可，不要求必须贴边填满。`zoomable=false` 时跳过聚焦（否则会和 `useZoomPan` 里"`enabled=false` 强制复位"的既有逻辑打架），但仍抛出 `cluster-click`。聚焦触发的短暂 `state.focusing` 驱动 `.dp-bg-wrap.is-focusing` 的一次性 CSS transition，不做全局 transition（会拖累滚轮缩放/拖拽平移的即时手感）。
 
+**最大缩放下的摊开兜底（`spiderfyGroup` / `core/cluster.ts` 的 `spiderfyOffsets`）：** 聚合半径是固定像素值，判定距离却是"归一化坐标差 × 基准像素宽高 × scale"，会随 scale 等比放大——但 `scale` 封顶在 `MAX_SCALE`（6×），只要两点原始间距小于 `半径 / MAX_SCALE`（完全重合点距离恒为 0），无论怎么放大，换算出的像素距离都不会超过半径，聚合圆点永远拆不散，用户会有设备"看不见也点不开"。**解法：不再依赖"缩放能拆散"这个假设**——`groups` 计算发现某簇在 `scale >= MAX_SCALE` 时仍达到 `minCount`，就不再合并成 `ClusterMarker`，改由纯函数 `spiderfyOffsets(count, radiusPx)` 算出 n 个成员围绕簇心等角分布的像素偏移（单圈环形），再各自换算回归一化坐标（`dx / (base.width * scale)`，与聚合判定同一量纲，因此只在 `scale` 已锁定在 `MAX_SCALE` 时换算才是良定义的）、`clamp01` 钳制，最终以 `kind: 'single'` 渲染——**天然复用 `#marker` 插槽**，接入方不需要为这条兜底路径写任何代码。摊开只发生在渲染层：返回的 `placement` 是"原 placement 的浅拷贝 + 覆盖 x/y"，不会回写、也不会触发 `update:placements`。这样无论用户是自己滚轮放大到 6×，还是点击聚合圆点被 `focusRect` 自动缩放到 6×（簇跨度越小，`focusRect` 算出的目标 scale 越大，越容易直接顶到上限），最终都会摊开，不需要额外的"是否可拆分"预判或专门的点击分支。**已知限制（本期不处理）：** 单圈环形没有做"成员数很多时分裂成多圈"，重合点位很多时摊开后仍可能局部拥挤——评估后判定为极少数场景，不在本期改动范围。
+
 **双击复位冲突：** `onCanvasDblClick` 的目标排除判断从只排除 `.dp-marker` 扩展为同时排除 `.dp-cluster`，避免点击聚合圆点后被误判成双击空白而复位。
 
 **已知的次要限制（不影响当前实际接入场景，未处理）：** 若接入方在运行时动态改变 `--dp-marker-size`（而非启动时静态声明），由于 CSS 变量变化本身不是 Vue 响应式依赖，聚合分组不会自动重算，需要一次额外的 `scale`/数据/容器尺寸变化才会带动它一起更新。当前所有实际接入页面均未有此动态切换场景。
@@ -387,7 +389,7 @@ build: {
 |----------|------|
 | `coordinate.test.ts` | `toNormalized` 换算正确、越界被 `clamp01` 钳到 [0,1] |
 | `placement.test.ts` | `upsert` 同 id 不新增只改坐标、`remove`、`isPlaced`、`sanitize` 过滤脏数据 |
-| `cluster.test.ts` | `clusterize` 距离内合并/距离外不合并、`minCount` 边界、按种子距离而非链式传递、顺序敏感性、`radiusPx<=0` 兜底、空输入、坐标重合；`boundingBoxOf` 多点/单点/空数组 |
+| `cluster.test.ts` | `clusterize` 距离内合并/距离外不合并、`minCount` 边界、按种子距离而非链式传递、顺序敏感性、`radiusPx<=0` 兜底、空输入、坐标重合；`boundingBoxOf` 多点/单点/空数组；`spiderfyOffsets` 空输入/单点不偏移/偏移距离恒等于半径/两点对称/角度均匀分布 |
 
 ---
 

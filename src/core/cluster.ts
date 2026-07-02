@@ -67,6 +67,31 @@ export function clusterize(items: ClusterInput[], options: ClusterizeOptions): C
   return groups
 }
 
+/** 摊开单个成员相对簇心的像素偏移 */
+export interface SpiderfyOffset {
+  dx: number
+  dy: number
+}
+
+/**
+ * 计算 n 个成员围绕簇心等角展开的像素偏移（单圈环形布局）。
+ * 用于"聚合簇已放大到最大缩放仍会合并"时的摊开兜底：把重合/极近的点位
+ * 沿固定像素半径均匀分开，保证用户放大到底（或点击聚合点后自动缩放到底）
+ * 时不会再剩下无法访问的数字圆点。成员数很多时环上会拥挤，暂不做多圈处理。
+ */
+export function spiderfyOffsets(count: number, radiusPx: number): SpiderfyOffset[] {
+  if (count <= 0) return []
+  if (count === 1) return [{ dx: 0, dy: 0 }]
+  const offsets: SpiderfyOffset[] = []
+  const angleStep = (2 * Math.PI) / count
+  for (let i = 0; i < count; i++) {
+    // 从正上方（12 点钟方向）开始顺时针分布，摆放顺序更符合直觉
+    const angle = angleStep * i - Math.PI / 2
+    offsets.push({ dx: Math.cos(angle) * radiusPx, dy: Math.sin(angle) * radiusPx })
+  }
+  return offsets
+}
+
 /** 计算一组归一化坐标点的最小包围盒（用于"聚焦到某簇"换算目标区域） */
 export function boundingBoxOf(points: Array<{ x: number; y: number }>): {
   minX: number

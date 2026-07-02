@@ -1,6 +1,8 @@
 import { computed, onUnmounted, ref, type ComputedRef } from 'vue'
 import type { ClusterMember, Device, Placement } from '../types'
-import { clusterize, type ClusterInput } from '../core/cluster'
+import { clusterize, spiderfyOffsets, type ClusterInput } from '../core/cluster'
+import { clamp01 } from '../core/coordinate'
+import { MAX_SCALE } from './useZoomPan'
 
 export interface ClusterRenderItem {
   kind: 'single' | 'cluster'
@@ -33,6 +35,8 @@ export interface UseClusterOptions {
 const DEFAULT_MARKER_SIZE = 32
 const MIN_COUNT = 2
 const RADIUS_FACTOR = 1.2
+/** 摊开环半径相对聚合半径的倍数，保证摊开后的独立点位彼此不贴在一起 */
+const SPIDERFY_RADIUS_FACTOR = 1.5
 
 /**
  * 探测运行时实际生效的 marker 像素尺寸：优先读画布内真实渲染的 .dp-marker-icon
@@ -74,6 +78,34 @@ function toSingle(item: ClusterMember): ClusterRenderItem {
     device: item.device,
     placement: item.placement,
   }
+}
+
+/**
+ * 把"已放大到最大缩放仍会合并"的簇按环形摊开成独立渲染项：位置仅用于渲染（不回写
+ * 到真实 placement），围绕簇心按固定像素半径展开，换算成归一化坐标时需除以
+ * "当前 scale"（此时恒为 MAX_SCALE），与聚合判定用的像素距离公式保持同一量纲。
+ */
+function spiderfyGroup(
+  members: ClusterMember[],
+  base: { width: number; height: number },
+  scale: number,
+  ringRadiusPx: number,
+): ClusterRenderItem[] {
+  const seed = members[0].placement
+  const offsets = spiderfyOffsets(members.length, ringRadiusPx)
+  return members.map((member, i) => {
+    const offset = offsets[i]
+    const x = clamp01(seed.x + offset.dx / (base.width * scale))
+    const y = clamp01(seed.y + offset.dy / (base.height * scale))
+    return {
+      kind: 'single',
+      key: member.placement.deviceId,
+      x,
+      y,
+      device: member.device,
+      placement: { ...member.placement, x, y },
+    }
+  })
 }
 
 /**
@@ -122,18 +154,27 @@ export function useCluster(options: UseClusterOptions) {
       y: item.placement.y * base.height * scale,
     }))
 
-    return clusterize(inputs, { radiusPx, minCount: MIN_COUNT }).map((group) => {
+    return clusterize(inputs, { radiusPx, minCount: MIN_COUNT }).flatMap((group) => {
       if (group.items.length === 1) {
-        return toSingle(memberMap.get(group.items[0].id)!)
+        return [toSingle(memberMap.get(group.items[0].id)!)]
       }
-      const seed = memberMap.get(group.items[0].id)!
-      return {
-        kind: 'cluster' as const,
-        key: group.id,
-        x: seed.placement.x,
-        y: seed.placement.y,
-        members: group.items.map((i) => memberMap.get(i.id)!),
+      const members = group.items.map((i) => memberMap.get(i.id)!)
+      if (scale >= MAX_SCALE) {
+        // 已经到最大缩放仍会聚合：说明这批点位的间距/重合程度超出了"靠放大拆分"的能力
+        // 范围，改为环形摊开成独立点位，保证"放大到底"或"点击聚合点后自动缩放到底"
+        // 两种路径都不会再剩下无法访问的数字圆点
+        return spiderfyGroup(members, base, scale, radiusPx * SPIDERFY_RADIUS_FACTOR)
       }
+      const seed = members[0]
+      return [
+        {
+          kind: 'cluster' as const,
+          key: group.id,
+          x: seed.placement.x,
+          y: seed.placement.y,
+          members,
+        },
+      ]
     })
   })
 

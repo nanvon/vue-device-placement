@@ -2,8 +2,8 @@ import { computed, onUnmounted, reactive, watch, type Ref } from 'vue'
 
 /** 缩放下限：1 = 适应画布（底图完整可见），不允许缩得更小 */
 const MIN_SCALE = 1
-/** 缩放上限 */
-const MAX_SCALE = 6
+/** 缩放上限；导出供 useCluster.ts 判断"是否已到最大缩放"，触发聚合摊开兜底 */
+export const MAX_SCALE = 6
 /** 滚轮灵敏度：deltaY → 缩放因子的指数系数 */
 const WHEEL_SENSITIVITY = 0.0015
 
