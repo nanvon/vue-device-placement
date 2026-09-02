@@ -1,71 +1,81 @@
-# vue-device-placement
+<h1 align="center">vue-device-placement</h1>
 
-[![npm version](https://img.shields.io/npm/v/vue-device-placement.svg)](https://www.npmjs.com/package/vue-device-placement)
-[![npm downloads](https://img.shields.io/npm/dm/vue-device-placement.svg)](https://www.npmjs.com/package/vue-device-placement)
-[![GitHub](https://img.shields.io/badge/GitHub-nanvon/vue--device--placement-black)](https://github.com/nanvon/vue-device-placement)
+<p align="center">
+  面向 Vue 3 的底图设备点位布设组件。通过拖拽交互在平面图上标注设备位置，输出屏幕尺寸无关的归一化相对坐标，内置视图平移缩放、高亮联动与只读点位聚合。
+</p>
 
-> 在底图上拖拽标注设备位置的 Vue 3 组件 —— 装个包就能用的"设备打点"能力。
+<p align="center">
+  <a href="https://www.npmjs.com/package/vue-device-placement"><img src="https://img.shields.io/npm/v/vue-device-placement?color=blue" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/vue-device-placement"><img src="https://img.shields.io/npm/dm/vue-device-placement" alt="npm downloads"></a>
+  <a href="https://github.com/nanvon/vue-device-placement/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange" alt="License"></a>
+  <img src="https://img.shields.io/badge/Vue-3.3+-42b883?logo=vue.js&logoColor=white" alt="Vue 3.3+">
+  <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero Dependencies">
+</p>
 
-- npm: [vue-device-placement](https://www.npmjs.com/package/vue-device-placement)
-- GitHub: [nanvon/vue-device-placement](https://github.com/nanvon/vue-device-placement)
+<p align="center">
+  <a href="#-快速安装">快速安装</a> •
+  <a href="#-快速上手">快速上手</a> •
+  <a href="#-核心特性">核心特性</a> •
+  <a href="#-组件接口">组件接口</a> •
+  <a href="#-数据结构">数据结构</a> •
+  <a href="#-样式定制">样式定制</a> •
+  <a href="README_EN.md">English</a>
+</p>
 
-很多业务都需要"在一张底图上标出设备的位置"：安防在楼层平面图上布摄像头/门禁/消防栓，光伏在电站图上布逆变器。本组件把这类交互抽象为开箱即用的前端组件：传入设备清单与底图，即可获得完整的拖拽打点能力，并拿到标准化的点位数据。
-
-- 🎯 三种打点路径（列表拖入 / 再次拖入 / 画布内拖动）统一坐实「一设备一点位」
-- 🔍 底图滚轮缩放 / 拖拽平移 / 双击复位（可关闭），大图也能精细打点
-- 📐 坐标用相对比例（0~1）存储，底图缩放不错位
-- 🔌 零运行时依赖，`vue` 作为 peer，体积小、无侵入
-- 🎨 纯 CSS + CSS 变量主题，预留多个插槽
-- 🧩 完整 TypeScript 类型
-
-## 安装
-
-```bash
-npm i vue-device-placement
+```text
+┌──────────────┬──────────────────────────────────────────┐
+│  设备列表    │              底图画布                    │
+│  □ 消防栓-01 │                                          │
+│  □ 门禁-东门 │         [📷] 摄像头-大厅                │
+│  ▣ 摄像头-01 │           ▲ 点位布设在平面图上           │
+│  ▣ 逆变器-01 │                                          │
+│   …（可滚动） │         [⚡] 逆变器-01                  │
+└──────────────┴──────────────────────────────────────────┘
+      左侧                        中间画布
+   □ 未放置  ▣ 已放置      滚轮缩放 / 拖拽平移 / 聚合
 ```
 
-> 需要宿主项目提供 Vue 3（`peerDependencies: vue ^3.3.0`）。
+---
 
-## 快速上手
+## 📦 快速安装
 
-### 方式一：按组件引入
+通过包管理器引入：
+
+```bash
+npm install vue-device-placement
+# 或使用 pnpm
+pnpm add vue-device-placement
+# 或使用 yarn
+yarn add vue-device-placement
+```
+
+> [!NOTE]
+> 本组件要求宿主环境提供 Vue 3（`peerDependencies: vue ^3.3.0`），无任何第三方运行时依赖。
+
+---
+
+## 🚀 快速上手
+
+### 极简单文件使用（<15 行）
 
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { DevicePlacement } from 'vue-device-placement'
-import type { Device, Placement } from 'vue-device-placement'
+import { DevicePlacement, type Device, type Placement } from 'vue-device-placement'
 import 'vue-device-placement/style.css'
 
-const devices = ref<Device[]>([
-  { id: 'camera-01', name: '摄像头-大厅', icon: '/device-icons/camera.png' },
-  { id: 'inverter-01', name: '逆变器-A区', icon: '/device-icons/inverter.png' },
-])
-
-// 可用后端读出的数据初始化（回显）
+const devices = ref<Device[]>([{ id: 'cam-1', name: '大厅摄像头', icon: '/camera.svg' }])
 const placements = ref<Placement[]>([])
-
-function save() {
-  // 把 placements.value 发给后端保存
-}
 </script>
 
 <template>
-  <DevicePlacement
-    :devices="devices"
-    background="/floor-plans/1f.png"
-    v-model:placements="placements"
-    @place="save"
-    @move="save"
-    @remove="save"
-  />
+  <DevicePlacement :devices="devices" background="/floor.png" v-model:placements="placements" />
 </template>
 ```
 
-> 别忘了引入样式：`import 'vue-device-placement/style.css'`。
-> `v-model:selected` 是可选的：不绑定时组件会自行维护高亮；只有当宿主项目也需要读取/控制当前高亮设备时才需要绑定。
+### 全局插件注册
 
-### 方式二：作为 Vue 插件安装
+可在应用入口全局挂载组件：
 
 ```ts
 import { createApp } from 'vue'
@@ -73,168 +83,180 @@ import VueDevicePlacement from 'vue-device-placement'
 import 'vue-device-placement/style.css'
 import App from './App.vue'
 
-createApp(App).use(VueDevicePlacement).mount('#app')
+const app = createApp(App)
+app.use(VueDevicePlacement)
+app.mount('#app')
 ```
 
-安装后可在任意组件中直接使用：
+---
 
-```vue
-<template>
-  <DevicePlacement
-    :devices="devices"
-    background="/floor-plans/1f.png"
-    v-model:placements="placements"
-  />
-</template>
-```
+## ✨ 核心特性
 
-## Props
+- **归一化相对坐标** — 点位坐标使用 `[0, 1]` 区间相对底图尺寸标注，与视口大小及屏幕分辨率解耦，窗口重排或容器缩放时位置恒定。
+- **一设备一点位约束** — 底层纯函数 `upsertPlacement` 确保同一 `deviceId` 唯一关联单一坐标；支持列表拖入、画布重拖与跨区域移动。
+- **零第三方运行时依赖** — 仅声明 `vue`（`^3.3.0`）作为 peerDependency，不引入任何第三方拖拽库、图表引擎或复杂数学包。
+- **DOM 与 CSS 硬件加速渲染** — 依托原生 DOM 与 CSS 2D Transform 实现图层缩放平移，点位图标通过反向缩放保持物理像素恒定（地图 Pin 效果）。
+- **视图缩放与平移漫游** — 支持鼠标滚轮以光标为中心缩放（1x ~ 5x）、空白区域按住平移与双击空白快速复位；可通过 `zoomable` 参数关闭。
+- **点位密度自适应聚合** — 在 `readonly` 模式下内置基于欧氏距离的贪心聚类算法，自动将密集点位收缩为数字圆点，点击自动计算最小包围盒并聚焦缩放。
+- **100% 本地计算与零网络遥测** — 坐标映射、聚类分组与数据校验全部在客户端同步完成，组件内部不发起任何网络请求或数据上报。
+- **双轨数据输出与清洗兜底** — 同时提供全量响应式输出（`v-model:placements`）与原子语义事件（`place` / `move` / `remove`）；内置 `sanitizePlacements` 自动过滤未知 ID 与越界数值。
 
-| 名称 | 类型 | 必填 | 默认 | 说明 |
-|------|------|:--:|:--:|------|
-| `devices` | `Device[]` | 是 | — | 设备清单（设备实例全集；渲染左侧列表、画布点位与拖拽均基于此） |
-| `paletteTree` | `PaletteNode[]` | 否 | — | 左侧列表层级数据：传入则按树形展开（如主机-设备两级），不传则平铺 `devices`。仅影响列表展示，不影响打点 |
-| `background` | `string` | 是 | — | 底图图片 URL |
-| `placements` | `Placement[]` | 否 | `[]` | 点位数据，配合 `v-model:placements` |
-| `selected` | `string \| null` | 否 | `null` | 当前高亮设备 id；不绑定时组件内部维护，配合 `v-model:selected` 可外部控制 |
-| `highlightDuration` | `number` | 否 | `3000` | 高亮自动取消时长（毫秒） |
-| `readonly` | `boolean` | 否 | `false` | 只读模式（禁用拖拽与删除） |
-| `zoomable` | `boolean` | 否 | `true` | 底图缩放/平移：滚轮缩放、拖空白平移、双击复位；设为 `false` 全部禁用 |
+---
 
-> 主题（主色、图标尺寸等）不走 props，走 CSS 变量，见下文。
+## 📋 组件接口
 
-## 事件 / v-model
+### Props
 
-| 事件 | 参数 | 说明 |
-|------|------|------|
-| `update:placements` | `(placements: Placement[])` | 任何变更都吐出**完整数组**（整表覆盖保存用） |
-| `update:selected` | `(id: string \| null)` | 高亮设备变化 |
-| `place` | `(deviceId, { x, y })` | 新建一个点位时（增量保存用） |
-| `move` | `(deviceId, { x, y })` | 移动点位时 |
-| `remove` | `(deviceId)` | 删除点位时 |
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :---: | :---: | :--- |
+| `devices` | `Device[]` | 是 | — | 设备实例全集，驱动左侧列表与画布点位渲染 |
+| `background` | `string` | 是 | — | 底图图片 URL 地址 |
+| `placements` | `Placement[]` | 否 | `[]` | 点位数据数组，支持 `v-model:placements` 双向绑定 |
+| `selected` | `string \| null` | 否 | `null` | 当前选中的设备 ID，支持 `v-model:selected` 双向同步 |
+| `highlightDuration` | `number` | 否 | `3000` | 选中高亮持续时间（毫秒），超时自动取消高亮 |
+| `readonly` | `boolean` | 否 | `false` | 只读模式；开启后禁用拖拽交互与点位删除按钮 |
+| `zoomable` | `boolean` | 否 | `true` | 是否启用画布滚轮缩放、拖拽平移与双击复位 |
+| `cluster` | `boolean` | 否 | `false` | 是否开启密集点位聚合（仅在 `readonly=true` 时生效） |
+| `paletteTree` | `PaletteNode[]` | 否 | `undefined` | 左侧列表层级树；传入后按树形递归缩进展示，不传则平铺展示 |
 
-> 同时提供「完整数组」和「语义事件」两套出口：要整表覆盖就用 `update:placements`，要增量保存就监听 `place/move/remove`。
-> `update:selected` 始终会抛出；如果不绑定 `v-model:selected`，组件内部仍会正常高亮并自动取消。
+### Emits / 事件
 
-## 插槽（Slots）
+| 事件名 | 回调参数 | 触发时机与用途 |
+| :--- | :--- | :--- |
+| `update:placements` | `(value: Placement[])` | 任何点位增删改时触发，输出全量清洗后的点位数组（全量保存） |
+| `update:selected` | `(id: string \| null)` | 选中设备状态变更时触发 |
+| `place` | `(deviceId: string, pos: { x: number; y: number })` | 从列表拖入新增点位时触发（增量保存） |
+| `move` | `(deviceId: string, pos: { x: number; y: number })` | 在画布上拖动移动点位时触发（增量保存） |
+| `remove` | `(deviceId: string)` | 点击删除点位时触发（增量保存） |
+| `cluster-click` | `(payload: { members: ClusterMember[] })` | 点击聚合圆点时触发，提供簇内完整成员清单 |
 
-| 插槽 | 作用域参数 | 说明 |
-|------|-----------|------|
-| `marker` | `{ device, placement, selected }` | 完全自定义点位外观 |
-| `icon` | `{ device, selected }` | 只自定义图标，保留默认名称与删除× |
-| `device-item` | `{ device, placed, depth }` | 自定义左侧列表项外观（`depth` 为树形展开时的层级深度，平铺时恒为 0） |
-| `palette-empty` | — | 左侧无设备时的空状态 |
-| `empty` | — | 画布空状态（无底图 / 底图加载失败） |
+### Slots / 插槽
 
-## 数据格式
+| 插槽名 | 作用域参数 | 说明 |
+| :--- | :--- | :--- |
+| `#marker` | `{ device: Device, placement: Placement, selected: boolean }` | 完全自定义画布点位 DOM 结构 |
+| `#icon` | `{ device: Device, selected: boolean }` | 自定义点位图标，保留默认名称标签与删除按钮 |
+| `#device-item` | `{ device: Device, placed: boolean, depth: number }` | 自定义左侧列表项样式（`depth` 为层级深度） |
+| `#palette-empty` | — | 左侧设备列表无数据时的空状态 |
+| `#empty` | — | 画布无底图或底图加载失败时的空状态 |
+| `#cluster` | `{ members: ClusterMember[], count: number }` | 自定义聚合圆点样式 |
 
-坐标使用**相对底图的归一化比例（0~1）**，与屏幕/容器尺寸无关；以 `deviceId` 为主键（一设备一点位）。输入与输出结构一致，可直接来回传递。
+---
+
+## 📐 数据结构
+
+### 核心类型定义
 
 ```ts
-interface Device {
-  id: string      // 唯一标识，点位关联键
-  name: string    // 显示在点位上方
-  icon: string    // 图标图片 URL
-  type?: string   // 分类（预留，本期不分组）
+/** 单台设备实例 */
+export interface Device {
+  id: string          // 唯一标识，点位关联键
+  name: string        // 设备名称，悬浮与标签显示
+  icon: string        // 设备图标 URL
+  type?: string       // 分类标识（预留字段）
 }
 
-interface Placement {
-  deviceId: string // 关联设备 id（唯一）
-  x: number        // 横向相对位置 0~1
-  y: number        // 纵向相对位置 0~1
+/** 点位数据（归一化相对坐标） */
+export interface Placement {
+  deviceId: string    // 关联设备 ID（一设备一点位）
+  x: number           // 横向相对位置（0.0 ~ 1.0）
+  y: number           // 纵向相对位置（0.0 ~ 1.0）
+}
+
+/** 左侧层级展示树节点 */
+export interface PaletteNode {
+  deviceId: string
+  children?: PaletteNode[]
+}
+
+/** 聚合簇成员 */
+export interface ClusterMember {
+  device: Device
+  placement: Placement
 }
 ```
+
+### 点位 JSON 输出示例
 
 ```json
 [
-  { "deviceId": "camera-01",   "x": 0.324, "y": 0.581 },
+  { "deviceId": "cam-01", "x": 0.324, "y": 0.581 },
   { "deviceId": "inverter-01", "x": 0.760, "y": 0.402 }
 ]
 ```
 
-回显数据中若含设备清单里不存在的 id，会被自动忽略，不影响其余点位渲染。
+### 纯函数工具库导出
 
-### 树形列表（可选）
-
-`devices` 始终是「设备实例全集」并承载打点（每个实例可单独打点）；若左侧列表需要分层展示（如主机-设备两级），额外传 `paletteTree`，用 `deviceId` 引用 `devices` 中的实例并描述父子关系即可。父节点与子节点都照常可选中、可拖拽打点；不传 `paletteTree` 时即为普通一级列表。过滤/搜索请在外部对 `paletteTree` 自行处理后传入，组件只负责按给定结构渲染。
+对于需要在组件外处理点位或坐标的高级场景，组件库直接导出无状态核心纯函数：
 
 ```ts
-interface PaletteNode {
-  deviceId: string         // 引用 devices 中的设备 id
-  children?: PaletteNode[] // 子节点；省略即为叶子
-}
+import {
+  clamp01,             // 将数值限制在 [0, 1] 区间
+  toNormalized,        // 视口像素坐标转换为归一化坐标
+  upsertPlacement,     // 更新或插入点位（保持单设备单点位）
+  removePlacement,     // 移除指定设备点位
+  sanitizePlacements,  // 校验并清洗点位数组（去重、过滤未知 ID、截断边界）
+  clusterize,          // 基于欧氏距离的贪心点位聚合
+  boundingBoxOf,       // 计算点位集合的最小包围盒
+} from 'vue-device-placement'
 ```
 
-```ts
-// devices 仍是扁平全集（主机与设备都在内，均可打点）
-const devices = [
-  { id: 'host-1', name: '消防主机1', icon: '...' },
-  { id: 'dev-1', name: '烟感1', icon: '...' },
-  { id: 'dev-2', name: '烟感2', icon: '...' },
-]
-// paletteTree 只描述列表层级
-const paletteTree = [
-  { deviceId: 'host-1', children: [{ deviceId: 'dev-1' }, { deviceId: 'dev-2' }] },
-]
-```
+---
 
-## 主题定制（CSS 变量）
+## 🎨 样式定制
 
-覆盖 `.dp-root` 上的变量即可：
+组件所有视觉样式均基于 CSS 变量构建。接入方可在宿主全局或容器类上直接覆盖：
 
 ```css
 .dp-root {
-  --dp-primary-color: #2f80ed;     /* 主题/高亮色 */
+  --dp-primary-color: #2f80ed;     /* 主题强调色与选中高亮色 */
   --dp-palette-width: 200px;       /* 左侧列表宽度 */
   --dp-marker-size: 32px;          /* 点位图标尺寸 */
-  --dp-label-bg: rgba(0,0,0,.65);  /* 名称底色 */
-  --dp-label-color: #fff;
-  --dp-highlight-scale: 1.25;      /* 高亮放大倍数 */
-  --dp-height: 480px;              /* 组件整体高度 */
+  --dp-cluster-size: 36px;         /* 聚合圆点直径 */
+  --dp-cluster-color: #2f80ed;     /* 聚合圆点背景色 */
+  --dp-cluster-text-color: #fff;   /* 聚合圆点文字颜色 */
+  --dp-label-max-width: 96px;      /* 点位名称最大宽度（超长省略） */
+  --dp-label-bg: rgba(0, 0, 0, .65);/* 点位名称标签背景 */
+  --dp-label-color: #ffffff;       /* 点位名称文字颜色 */
+  --dp-highlight-scale: 1.25;      /* 选中时放大比例 */
+  --dp-height: 480px;              /* 组件整体容器高度 */
+  --dp-indent: 16px;               /* 树形列表每级缩进量 */
+  --dp-radius: 6px;                /* 容器与列表项圆角 */
+  --dp-canvas-bg: #f3f4f6;         /* 画布背景色 */
+  --dp-palette-bg: #fafafa;        /* 左侧列表背景色 */
 }
 ```
 
-## 本地开发
+---
+
+## 🔒 隐私与安全性
+
+| 机制 | 规格事实 | 安全保障 |
+| :--- | :---: | :--- |
+| **计算位置** | 100% 浏览器客户端同步完成 | 坐标映射、越界钳制与聚类分组全程本地运算 |
+| **数据上报** | 零网络遥测与埋点 | 组件自身不引入任何分析 SDK，不发起任何外联通信 |
+| **资源权限** | 只读底图与图标 URL | 仅通过标准 `<img>` 标签加载宿主提供的图片 URL |
+
+---
+
+## 💻 本地开发
 
 ```bash
-npm install      # 安装依赖
-npm run dev      # 启动 playground 演示页（右侧实时显示点位 JSON）
-npm test         # 运行核心逻辑单测
-npm run build    # 类型检查 + 库构建，产出 dist/
+# 安装依赖
+npm install
+
+# 启动本地 Playground 演示服务
+npm run dev
+
+# 运行核心算法单元测试
+npm test
+
+# 构建类型声明与生产包产物
+npm run build
 ```
 
-## 发布到 npm
+---
 
-先确认已 `npm login`，然后整段复制执行即可——构建、升版本、发布、同步镜像、验证一条龙：
+## 📄 开源许可
 
-```bash
-cd /Users/nanvon/Code/vue-device-placement && \
-npm run build && \
-npm version patch --no-git-tag-version && \
-npm publish --access public && \
-npm exec --yes --package=cnpm --registry=https://registry.npmmirror.com -- cnpm sync vue-device-placement && \
-V=$(node -p "require('./package.json').version") && sleep 3 && \
-curl -sL -o /dev/null -w "镜像 v$V: %{http_code}（200=成功）\n" \
-  "https://registry.npmmirror.com/vue-device-placement/-/vue-device-placement-$V.tgz"
-```
-
-关键点：
-
-- `build` 放第一个且用 `&&` 串联——类型检查/构建一旦失败，后续全部不执行，避免发出不含最新改动的空包（`files: ["dist"]` 只发构建产物，dist 没重建就会发旧代码）。
-- `npm version patch` 自动把版本号 +1（已发布版本不可覆盖，必须用新号）；`--no-git-tag-version` 让工作区有未提交改动也能跑。
-- 同步用 `npm exec` 临时拉起 cnpm，本机没装 cnpm 也能用；最后自动按新版本号验证镜像 tarball，打印 `200` 即成功。
-
-发完后，下游项目把依赖改成新版本号再安装即可（如本仓库消费方 `pnpm install`）。
-
-### 排错
-
-- **CI 报 `ERR_PNPM_FETCH_404 ... npmmirror ... .tgz`**：npmjs 已有新版本但 npmmirror 还没同步 tarball。重跑上面的 `cnpm sync` 那行，或临时让 CI 走官方源：`pnpm install --registry=https://registry.npmjs.org/`。
-- **想先预演不真发**：把 `npm publish` 换成 `npm publish --dry-run`；用 `npm pack --dry-run` 可查看实际会进包的文件。
-
-## 浏览器支持
-
-仅支持桌面浏览器（鼠标操作），本期不考虑触摸 / 移动端。
-
-## License
-
-MIT
+本项目基于 [MIT License](LICENSE) 开源发布。
