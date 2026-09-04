@@ -1,6 +1,6 @@
 {
   "name": "vue-device-placement",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Vue 3 设备打点组件 —— 在底图上拖拽标注设备位置，输出归一化坐标点位数据。",
   "type": "module",
   "main": "./dist/vue-device-placement.umd.js",

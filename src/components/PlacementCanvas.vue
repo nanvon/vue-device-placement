@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { ClusterMember, Device, Placement } from '../types'
 import { useCanvasCoordinate } from '../composables/useCanvasCoordinate'
 import { useZoomPan } from '../composables/useZoomPan'
@@ -100,14 +100,17 @@ const showHint = computed(() => !showEmpty.value && props.placements.length === 
 watch(
   () => props.background,
   () => {
-    // 切换底图：清空旧比例，等新图 load 后按其自然尺寸重置，避免用旧比例约束新图
+    // 切换底图：清空旧比例并重启探测，避免用旧比例约束新图
     loadError.value = false
     imgRatio.value = undefined
+    if (props.background) startRatioProbe()
+    else stopRatioProbe()
   },
 )
 
 function onError() {
   loadError.value = true
+  stopRatioProbe()
 }
 // 记录底图自然宽高比，驱动包裹层 aspect-ratio：让 wrap 在舞台内等比收缩，盒子恒等于照片
 // 实际渲染区（§6.2）。否则普通 div 的 max-width/max-height 各自独立夹取、丢失比例，导致
@@ -122,13 +125,56 @@ function applyImgRatio() {
 function onLoad() {
   loadError.value = false
   applyImgRatio()
+  stopRatioProbe()
+}
+
+/** 逐帧探测的句柄，0 表示未在探测 */
+let ratioProbeId = 0
+
+function stopRatioProbe() {
+  if (ratioProbeId) {
+    cancelAnimationFrame(ratioProbeId)
+    ratioProbeId = 0
+  }
+}
+
+/**
+ * 逐帧探测底图自然尺寸，取到即写入 imgRatio 并停止。
+ *
+ * 不能只等 load：那会留下一段"比例未知"的空窗，wrap 缺 aspect-ratio 时高度是
+ * content-based，img 的 height:100% 退化为 auto、object-fit:contain 失效，底图以
+ * "宽度铺满、高度按原比例溢出"渲染，视觉上画布先放大一截、图加载完才缩回去。
+ * naturalWidth 在浏览器解析出图片头部尺寸时就已可读，远早于 load 完成，逐帧探测
+ * 能把这段空窗压到渐进渲染的第一帧（缓存命中时则在挂载当帧即完成）。
+ *
+ * 每帧只读一次 naturalWidth，开销可忽略；load / error / 卸载 / 切换底图都会停。
+ */
+function startRatioProbe() {
+  stopRatioProbe()
+  const probe = () => {
+    // 底图被清空或已报错时不再有可读的 img，直接收尾
+    if (!props.background || loadError.value) {
+      ratioProbeId = 0
+      return
+    }
+    applyImgRatio()
+    if (imgRatio.value !== undefined) {
+      ratioProbeId = 0
+      return
+    }
+    ratioProbeId = requestAnimationFrame(probe)
+  }
+  ratioProbeId = requestAnimationFrame(probe)
 }
 
 // 兜底：底图被缓存时 load 可能在监听绑定前已触发（img.complete 为真不再 fire），
 // 挂载后补读一次自然尺寸，避免 wrap 因缺 aspect-ratio 而塌陷
 onMounted(() => {
   if (imgEl.value?.complete) applyImgRatio()
+  if (imgRatio.value === undefined && props.background) startRatioProbe()
 })
+
+onUnmounted(stopRatioProbe)
 
 // 暴露给根组件做拖拽坐标换算 + 视图复位
 defineExpose({ toRelative, isInside, getRect, resetView })
@@ -146,7 +192,7 @@ defineExpose({ toRelative, isInside, getRect, resetView })
       <div
         ref="wrapEl"
         class="dp-bg-wrap"
-        :class="{ 'is-focusing': zoom.focusing }"
+        :class="{ 'is-focusing': zoom.focusing, 'is-ratio-ready': imgRatio !== undefined }"
         :style="[wrapStyle, { '--dp-zoom': zoom.scale, aspectRatio: imgRatio }]"
         @pointerdown="onPanStart"
       >

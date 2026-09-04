@@ -246,6 +246,13 @@ export interface Placement {
 
 **归一化坐标的红利：** 因为点位用百分比定位，**底图尺寸变化时点位会自动跟随，无需任何 JS 重算**。只有在"鼠标像素 → 归一化"这一步（拖拽时）才需要 `imgRect`，临时 `getBoundingClientRect()` 取一次即可。
 
+**实现补充（现状）：** 上面的 img 自适应写法后来改成了「包裹层 `.dp-bg-wrap` 锁 `aspect-ratio` + img 满填」——`max-width`/`max-height` 各自独立夹取会丢失比例，让 wrap 盒子大于图片实际渲染区。宽高比由 JS 读 `naturalWidth/naturalHeight` 写入。
+
+由此带来一个必须处理的空窗：**比例写入之前 wrap 没有确定高度**，img 的 `height:100%` 按 CSS2.1 §10.5 退化为 `auto`，`object-fit:contain` 拿不到高度框而失效，底图会以「宽度铺满、高度按原比例溢出」渲染，放大倍数 = 容器宽高比 ÷ 底图宽高比，点位层同步错位。所以：
+
+- `naturalWidth` 在浏览器解析出图片头部尺寸时即可读，**远早于 `load`**，用 `requestAnimationFrame` 逐帧探测把空窗压到渐进渲染首帧；
+- 仍未就位的那一小段，用 wrap 上的 `is-ratio-ready` 类做 `visibility` 门控，宁可留白也不展示错误尺寸。
+
 ### 6.3 一设备一点位（upsert）
 
 ```ts

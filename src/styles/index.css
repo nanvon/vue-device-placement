@@ -149,6 +149,16 @@
   display: inline-block;
   max-width: 100%;
   max-height: 100%;
+  /* 宽高比就位前先整体隐藏。此时 wrap 高度是 content-based，img 的 height:100% 按规范
+     退化为 auto、object-fit:contain 拿不到确定高度框而失效，底图会以"宽度铺满、高度按
+     原比例溢出"的放大态渲染（放大倍数 = 容器宽高比 / 底图宽高比），点位层也据此错位。
+     那段时间图本就没加载完、没有可看内容，留白比展示一个错误尺寸的画面好。 */
+  visibility: hidden;
+}
+
+/* 宽高比已写入：此时 wrap 尺寸恒等于图片实际渲染区，可以放心显示 */
+.dp-bg-wrap.is-ratio-ready {
+  visibility: visible;
 }
 
 /* 点击聚合圆点触发聚焦时的瞬时过渡；不做全局 transition，避免拖累滚轮缩放/拖拽平移的即时手感 */
@@ -169,7 +179,8 @@
   width: 100%;
   height: 100%;
   /* wrap 已锁定底图宽高比，图片满填即与照片完全重合：无变形、无留白。
-     保留 object-fit:contain 仅作 aspect-ratio 尚未写入（首帧/异常）时的兜底。 */
+     object-fit:contain 在这里只是防御性声明——wrap 高度依赖内容时百分比高度会退化为
+     auto，contain 本就无从生效，故"比例未知"的状态改由 wrap 的 visibility 兜住。 */
   object-fit: contain;
   -webkit-user-drag: none;
   user-select: none;
